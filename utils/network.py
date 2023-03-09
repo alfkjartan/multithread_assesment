@@ -75,11 +75,10 @@ class ServerConnection
        
     """
 
-    def __init__(self, sckt : socket.Socket, data_model_builder : Callable, logger : Logger):
+    def __init__(self, sckt : socket.Socket, message_prototype : Message, logger : Logger):
         self.sckt = sckt
         self.logger = logger
-        self.data = data_model_builder() 
-        self.msglen = len(self.data.to_json())
+        self.data = message_prototype 
         
         def __call__(self):
         """ Function run by thread. Receives data over the socket, parses and calls logger.
@@ -93,15 +92,32 @@ class ServerConnection
             self.logger.append(self.data)
 
         def __read(self) -> str:
-            msglen = self.msglen
+            """ Will read data from the socket and checking for opening and closing curly
+            brackets. Returns when a string with balanced curly brackets is found.
+            """
+            opening_brackets = 0
+            closing_brackets = 0
+            
             chunks = []
             bytes_recd = 0
-            while bytes_recd < msglen:
-            chunk = self.sock.recv(min(msglen - bytes_recd, 2048))
-            if chunk == b'':
-                raise RuntimeError("socket connection broken")
-            chunks.append(chunk)
-            bytes_recd = bytes_recd + len(chunk)
+            # Read to find first opening bracket 
+            while opening_brackets == 0:
+                chunk = self.sock.recv(1024)
+                if chunk == b'':
+                    raise RuntimeError("socket connection broken")
+                opening_brackets += chunk.count(b'{')
+                closing_brackets += chunk.count(b'}')
+                chunks.append(chunk)
+
+            # Continue reading until balanced number of brackets
+            while opening_brackets > closing_brackets:
+                chunk = self.sock.recv(2048)
+                if chunk == b'':
+                    raise RuntimeError("socket connection broken")
+                opening_brackets += chunk.count(b'{')
+                closing_brackets += chunk.count(b'}')
+                chunks.append(chunk)
+        
             return b''.join(chunks)
         
 class Server

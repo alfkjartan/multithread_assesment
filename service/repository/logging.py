@@ -1,7 +1,7 @@
 import threading
 import sys
 from service.repository.repository import Repository
-from utils.datamodel import DataModel
+from service.model.message import Message
 
 
 class SingletonMeta(type):
@@ -54,7 +54,7 @@ class Logger(metaclass=SingletonMeta):
 
         self.repositories = []
         
-    def append(self, d : DataModel):
+    def append(self, d : Message):
         [r.append(d) for r in self.repositories]
 
     def add_repository(self, r : Repository):
@@ -68,14 +68,14 @@ class Logger(metaclass=SingletonMeta):
             pass
             
 
-    def screen_logger(file=sys.stdout):
+    def add_screen_logger(self, file=sys.stdout):
         logger = Logger()
         logger.add_repository(Repository.screen_repository(file))
         return logger
 
-    def csv_logger(filename : str):
+    def add_csv_logger(self, filename : str):
         logger = Logger()
-        logger.add_repository(Repository.csv_repository(filename)
+        logger.add_repository(Repository.csv_repository(filename))
         return logger
         
     

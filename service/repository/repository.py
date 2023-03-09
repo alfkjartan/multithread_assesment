@@ -1,11 +1,11 @@
 import sys
-from abc import ABC
+import abc
 from service.model.message import Message
 
 
-class Repository(ABC):
+class Repository(abc.ABC):
 
-    @abstractmethod
+    @abc.abstractmethod
     def append(self, message: Message):
         pass
 
@@ -22,17 +22,22 @@ class ScreenRepository(Repository):
 
 
     def append(self, message : Message):
-        print("\t".join(message.__dict__.values()), file=self.file)
+        print("\t".join(map(str, message.__dict__.values())), file=self.file)
 
 
 class CSVRepository(Repository):
 
     def __init__(self, filename : str):
         self.filename = filename
-        with open(self.filename, 'w') as f:
-            f.write(", ".join(map(str, message.__dict__.keys())))
 
+        self.header_written = False
+        
     def append(self, message : Message):
+        if not self.header_written:
+            with open(self.filename, 'w') as f:
+                f.write(", ".join(map(str, message.__dict__.keys())))
+                f.write("\n")
+            self.header_written = True
         with open(self.filename, 'a') as f:
-            f.write(", ".join(map(str, message.__dict__.keys())))
-
+            f.write(", ".join(map(str, message.__dict__.values())))
+            f.write("\n")

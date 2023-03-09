@@ -25,7 +25,7 @@ class Message:
 
     Static methods
     --------------
-    int_model() -> Message
+    int_message() -> Message
        Returns an object for which the data field is an integer. 
      
     """
@@ -53,6 +53,6 @@ class Message:
 
         return self
 
-    def int_model():
+    def int_message():
         return Message(-1, "Unknown", 1)
     
