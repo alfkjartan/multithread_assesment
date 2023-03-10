@@ -42,7 +42,7 @@ class Message:
 
     
     def to_json(self) -> str:
-        return json.dumps(self.__dict__)
+        return json.dumps(self.__dict__, parse_)
 
     def from_json(self, j : str):
         jdict = json.loads(j)
@@ -52,6 +52,10 @@ class Message:
                 setattr(self, key, val)
 
         return self
+
+    def from_json(j : str):
+        m = Message(42, 'unknown', 1) # Just temporary
+        return m.from_json(j)
 
     def int_message():
         return Message(-1, "Unknown", 1)

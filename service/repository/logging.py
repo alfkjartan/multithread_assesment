@@ -53,14 +53,18 @@ class Logger(metaclass=SingletonMeta):
     def __init__(self):
 
         self.repositories = []
+        self.lock = threading.Lock()
         
     def append(self, d : Message):
-        [r.append(d) for r in self.repositories]
+        with self.lock:
+            [r.append(d) for r in self.repositories]
 
     def add_repository(self, r : Repository):
-        self.repositories.append(r)
+        with self.lock:
+            self.repositories.append(r)
 
     def remove_repository (self, r : Repository):
+        with self.lock:
         try:
             self.repositories.remove(r)
         except ValueError:
@@ -68,12 +72,12 @@ class Logger(metaclass=SingletonMeta):
             pass
             
 
-    def add_screen_logger(self, file=sys.stdout):
+    def add_screen(self, file=sys.stdout):
         logger = Logger()
         logger.add_repository(Repository.screen_repository(file))
         return logger
 
-    def add_csv_logger(self, filename : str):
+    def add_csv_repository(self, filename : str):
         logger = Logger()
         logger.add_repository(Repository.csv_repository(filename))
         return logger

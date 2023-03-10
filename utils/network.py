@@ -75,10 +75,9 @@ class ServerConnection
        
     """
 
-    def __init__(self, sckt : socket.Socket, message_prototype : Message, logger : Logger):
+    def __init__(self, sckt : socket.Socket, logger : Logger):
         self.sckt = sckt
         self.logger = logger
-        self.data = message_prototype 
         
         def __call__(self):
         """ Function run by thread. Receives data over the socket, parses and calls logger.
@@ -88,8 +87,7 @@ class ServerConnection
 
         
         while True:
-            self.data.from_json(self.__read())
-            self.logger.append(self.data)
+            self.logger.append(Message.from_json(self.__read())
 
         def __read(self) -> str:
             """ Will read data from the socket and checking for opening and closing curly
