@@ -1,6 +1,7 @@
 import socket
+from threading import Thread
 from service.model.message import Message
-from logging.logging import Logger
+from service.repository.logging import Logger
 
 #import time
 #from threading import Thread
@@ -43,20 +44,22 @@ class ClientConnection:
         
     def __connect(self):
         self.sckt.connect((self.host, self.port))
-
+        print("Client connected")
 
     def send(self, d : Message) -> bool:
-        msg = d.to_json()
+        msg = d.to_json().encode()
         msglen = len(msg)
         totalsent = 0
         while totalsent < msglen:
-            sent = self.sock.send(msg[totalsent:])
+            sent = self.sckt.send(msg[totalsent:])
             if sent == 0:
                 self.available = False
-            totalsent = totalsent + sent
-
+                return False
+            else:
+                totalsent = totalsent + sent
+        return True
             
-class ServerConnection
+class ServerConnection:
     """ Representation of the server side connection for communication over sockets.
 
     Attributes
@@ -75,50 +78,48 @@ class ServerConnection
        
     """
 
-    def __init__(self, sckt : socket.Socket, logger : Logger):
+    def __init__(self, sckt : socket.socket, logger : Logger):
         self.sckt = sckt
         self.logger = logger
         
-        def __call__(self):
+    def __call__(self):
         """ Function run by thread. Receives data over the socket, parses and calls logger.
         
-        Code adapted from https://docs.python.org/3/howto/sockets.html
-        """
-
-        
+            Code adapted from https://docs.python.org/3/howto/sockets.html
+       """
         while True:
-            self.logger.append(Message.from_json(self.__read())
-
-        def __read(self) -> str:
-            """ Will read data from the socket and checking for opening and closing curly
+            self.logger.append(Message.from_json_str(self.__read()))
+            
+    def __read(self) -> str:
+        """ Will read data from the socket and checking for opening and closing curly
             brackets. Returns when a string with balanced curly brackets is found.
             """
-            opening_brackets = 0
-            closing_brackets = 0
-            
-            chunks = []
-            bytes_recd = 0
-            # Read to find first opening bracket 
-            while opening_brackets == 0:
-                chunk = self.sock.recv(1024)
-                if chunk == b'':
-                    raise RuntimeError("socket connection broken")
-                opening_brackets += chunk.count(b'{')
-                closing_brackets += chunk.count(b'}')
-                chunks.append(chunk)
+        opening_brackets = 0
+        closing_brackets = 0
+        
+        chunks = []
+        bytes_recd = 0
+        # Read to find first opening bracket 
+        while opening_brackets == 0:
+            chunk = self.sckt.recv(1024)
+            if chunk == b'':
+                raise RuntimeError("socket connection broken")
+            opening_brackets += chunk.count(b'{')
+            closing_brackets += chunk.count(b'}')
+            chunks.append(chunk)
 
-            # Continue reading until balanced number of brackets
-            while opening_brackets > closing_brackets:
-                chunk = self.sock.recv(2048)
-                if chunk == b'':
-                    raise RuntimeError("socket connection broken")
-                opening_brackets += chunk.count(b'{')
-                closing_brackets += chunk.count(b'}')
-                chunks.append(chunk)
+        # Continue reading until balanced number of brackets
+        while opening_brackets > closing_brackets:
+            chunk = self.sckt.recv(2048)
+            if chunk == b'':
+                raise RuntimeError("socket connection broken")
+            opening_brackets += chunk.count(b'{')
+            closing_brackets += chunk.count(b'}')
+            chunks.append(chunk)
+            
+        return b''.join(chunks)
         
-            return b''.join(chunks)
-        
-class Server
+class Server:
     """ Representation of the server side for communication over sockets. Listens for 
     connections, instantiates  ServerConnection objects and spawns threads to handle communication. 
 
@@ -138,19 +139,21 @@ class Server
        
     """
 
-    def __init__(self, host : str, port : int):
+    def __init__(self, host : str, port : int, logger : Logger):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
+        self.logger = logger
         
     def listen(self):
-        self.server_sckt.bind((self.host, self.port))
-        self.server_sckt.listen()
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen()
+        print("Server listening")
         while True:
-            client_sock, addr = sock.accept()
-            conn = ServerConnection(client_sock)
+            client_sock, addr = self.server_socket.accept()
+            conn = ServerConnection(client_sock, self.logger)
+            print("Server accepting connection")
             Thread(target=conn).start()
             
         

@@ -65,11 +65,11 @@ class Logger(metaclass=SingletonMeta):
 
     def remove_repository (self, r : Repository):
         with self.lock:
-        try:
-            self.repositories.remove(r)
-        except ValueError:
-            #Not present
-            pass
+            try:
+                self.repositories.remove(r)
+            except ValueError:
+                #Not present
+                pass
             
 
     def add_screen(self, file=sys.stdout):
