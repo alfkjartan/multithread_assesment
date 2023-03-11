@@ -61,4 +61,12 @@ class Message:
 
     def int_message():
         return Message(-1, "Unknown", 1)
+
+
+    def __str__(self) -> str:
+        return f'id = {self.id},  name = {self.name}, data = {self.data}, timestamp = {self.time_stamp}'
+
     
+    def copy(self):
+        """ Deep copy of the object. """
+        return Message(self.id, self.name, self.data, self.time_stamp)

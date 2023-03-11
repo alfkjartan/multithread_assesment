@@ -6,13 +6,13 @@ from datetime import datetime
 from multiprocessing import Process
 from threading import Thread
 from service.repository.logging import Logger
-from utils.network import Server, ClientConnection 
+from utils.network import Connection
 from service.model.message import Message
 from sensors.base_sensor import Sensor
 
 if __name__ == '__main__':
     # Default settings
-    tcp_connection = True
+    connection_type = 'socket'
     host = '127.0.0.1'
     port = 33332
     num_sensors = 5
@@ -21,8 +21,8 @@ if __name__ == '__main__':
     log_to_screen = False
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"n:m:h:p:c:d:s",
-                                   ["num_sensors=", "shared_memory", "host=", "port=",
+        opts, args = getopt.getopt(sys.argv[1:],"n:c:h:p:f:d:s",
+                                   ["num_sensors=", "connection_type=", "host=", "port=",
                                     "csv_file", "db_file", "screen_logger"])
     except getopt.GetoptError:
         sys.exit(2)
@@ -30,19 +30,21 @@ if __name__ == '__main__':
     for opt, arg in opts:
         if opt in ("-n", "--num_sensors"):
             num_sensors = int(arg)
-        elif opt in ("-m", "--shared_memory"):
-            tcp_connection = False
+        elif opt in ("-c", "--connection_type"):
+            connection_type = arg
         elif opt in ("-h", "--host"):
             host = arg
         elif opt in ("-p", "--port"):
             port = int(arg)
-        elif opt in ("-c", "--csv_file"):
+        elif opt in ("-f", "--csv_file"):
             csv_logfile = arg
         elif opt in ("-d", "--db_file"):
             sqlite_dbfile = arg
         elif opt in ("-s", "--screen_logger"):
             log_to_screen = True
 
+
+    print(connection_type)
 
     # Setting up the logger
     logger = Logger()
@@ -52,26 +54,30 @@ if __name__ == '__main__':
         logger.add_screen()
 
         
-    if tcp_connection:
+    if connection_type == 'socket':
+        connection_factory = Connection.create_socket_connection
         # Setting up and starting the server
-        server = Server(host, port, logger)
-        server_thread = Thread(target = server.listen)
-        print("Running server thread")
-        server_thread.start()
-        server_threads = [server_thread]
+        #server = Connnection.create_server(host, port, logger)
+        #server_thread = Thread(target = server.run)
+        #print("Running server thread")
+        #server_thread.start()
+        #server_threads = [server_thread,]
         # Creating the connection objects
-        sensor_connections = [ClientConnection(host, port) for _ in range(num_sensors)]
+        #sensor_connections = [Connection.create_client_connection(host, port) for _ in range(num_sensors)]
+    elif connection_type == 'shared_memory':
+        connection_factory = Connection.create_memory_connection
+    elif connection_type == 'pipe':
+        connection_factory = Connection.create_pipe_connection
 
-    else:
-        # Using shared memory
-        sensor_connections = []
-        server_threads = []
-        for _ in range(num_sensors):
-            server_connection, client_connection = Connection.get_connections(logger) # Factory
-            server_thread = Thread(target = server_connection.run)
+    sensor_connections = []
+    server_threads = []
+    for _ in range(num_sensors):
+        server_connection, client_connection = connection_factory(logger) 
+        server_thread = Thread(target = server_connection.run)
+        if not server_thread.is_alive():
             server_thread.start()
-            server_threads.append(server_thread)
-            sensor_connections.append(client_connection)
+        server_threads.append(server_thread)
+        sensor_connections.append(client_connection)
             
     # Creating and spawning the sensors
     dts = np.arange(1, num_sensors+2) # The sampling period of the sensors
