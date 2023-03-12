@@ -71,17 +71,6 @@ class Logger(metaclass=SingletonMeta):
                 #Not present
                 pass
             
-
-    def add_screen(self, file=sys.stdout):
-        logger = Logger()
-        logger.add_repository(Repository.screen_repository(file))
-        return logger
-
-    def add_csv_repository(self, filename : str):
-        logger = Logger()
-        logger.add_repository(Repository.csv_repository(filename))
-        return logger
-        
     
 
 

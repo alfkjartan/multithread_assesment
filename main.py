@@ -9,6 +9,7 @@ from threading import Thread
 from threading import Event as ThreadEvent
 from functools import partial
 from service.repository.logging import Logger
+from service.repository.repository import Repository
 from utils.network import Connection
 from service.model.message import Message
 from sensors.base_sensor import Sensor
@@ -22,11 +23,12 @@ if __name__ == '__main__':
     csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d.csv")
     sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
     log_to_screen = False
+    log_to_plot = False
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"n:c:h:p:f:d:s",
-                                   ["num_sensors=", "connection_type=", "host=", "port=",
-                                    "csv_file", "db_file", "screen_logger"])
+        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s",
+                                   ["num_sensors=", "connection_type=", "plot", 
+                                    "csv_file", "db_file", "screen_output"])
     except getopt.GetoptError:
         sys.exit(2)
 
@@ -35,26 +37,23 @@ if __name__ == '__main__':
             num_sensors = int(arg)
         elif opt in ("-c", "--connection_type"):
             connection_type = arg
-        elif opt in ("-h", "--host"):
-            host = arg
-        elif opt in ("-p", "--port"):
-            port = int(arg)
+        elif opt in ("-p", "--plot"):
+            log_to_plot = True
         elif opt in ("-f", "--csv_file"):
             csv_logfile = arg
         elif opt in ("-d", "--db_file"):
             sqlite_dbfile = arg
-        elif opt in ("-s", "--screen_logger"):
+        elif opt in ("-s", "--screen_output"):
             log_to_screen = True
 
 
             
     # Setting up the logger
     logger = Logger()
-    logger.add_csv_repository(csv_logfile)
+    logger.add_repository(Repository.csv_repository(csv_logfile))
     #TODO implement logging to sqlite database
-    if log_to_screen:
-        logger.add_screen()
-
+    if log_to_screen: logger.add_repository(Repository.screen_dump())
+    if log_to_plot: logger.add_repository(Repository.plot(num_sensors))
         
     if connection_type == 'socket':
         connection_factory = partial(Connection.create_socket_connection, host=host, port=port)

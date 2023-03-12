@@ -20,7 +20,9 @@ class Sensor:
         while True:
             time.sleep(self.dt)
             if stop_event.is_set():
-                print(f"{self.name} received stop event. Closing connection.")
+                print(f"{self.name} received stop event. Sending None and closing connection.")
+                self.message.data = None
+                self.connection.send(self.message)
                 self.connection.close()
                 break
             self.acquire()

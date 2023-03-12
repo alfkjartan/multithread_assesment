@@ -39,7 +39,7 @@ class Message:
         self.data = data
         if time_stamp is None:
             # Take current time
-            self.time_stamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S:%f")
+            self.time_stamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         else:
             self.time_stamp = time_stamp
         
