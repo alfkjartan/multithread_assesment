@@ -2,6 +2,7 @@ import numpy as np
 import random
 import sys
 import getopt
+import psutil
 from datetime import datetime
 from multiprocessing import Event as ProcessEvent
 from multiprocessing import Process
@@ -13,6 +14,7 @@ from service.repository.repository import Repository
 from utils.network import Connection
 from service.model.message import Message
 from sensors.base_sensor import Sensor
+from sensors.probe import *
 
 if __name__ == '__main__':
     # Default settings
@@ -24,11 +26,12 @@ if __name__ == '__main__':
     sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
     log_to_screen = False
     log_to_plot = False
+    cpu_sensor_data = False
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s",
+        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s:o",
                                    ["num_sensors=", "connection_type=", "plot", 
-                                    "csv_file", "db_file", "screen_output"])
+                                    "csv_file", "db_file", "screen_output", "cpu_data"])
     except getopt.GetoptError:
         sys.exit(2)
 
@@ -45,7 +48,10 @@ if __name__ == '__main__':
             sqlite_dbfile = arg
         elif opt in ("-s", "--screen_output"):
             log_to_screen = True
-
+        elif opt in ("--cpu_data"):
+            # Use functions from psutil module to generate sensor data 
+            cpu_sensor_data = True
+            
 
             
     # Setting up the logger
@@ -80,10 +86,23 @@ if __name__ == '__main__':
         sensor_connections.append(client_connection)
           
     # Creating and spawning the sensors
-    dts = np.arange(1, num_sensors+2) # The sampling period of the sensors
-    sensors = [Sensor(id, f'Sensor-{dt}', sampling_period = dt,
-                      probe = lambda : random.randint(-100, 100),
-                      connection = conn) for id, dt, conn in zip(range(num_sensors), dts, sensor_connections)]
+    if cpu_sensor_data:
+        dts = [1]*4 # The sampling period of the sensors
+        sensor_probes = {'CPU utilization (percent)' : cpu_utilization,
+                         'Load average (divide with number of cpu cores)' : load_average,
+                         'Memory available (Gb)' : memory_available,
+                         'CPU temperature (Celcius)' : cpu_temp}
+    else:
+        dts = np.arange(1, num_sensors+2) # The sampling period of the sensors
+        sensor_probes = {}
+        for dt_ in range(num_sensors):
+            sensor_probes[f'Sensor-{dt_}'] = lambda : random.randint(-100, 100)
+            
+    sensors = [Sensor(id, name, sampling_period = dt,
+                      probe=sensor_probes[name],
+                      connection = conn) \
+               for id, name, dt, conn in zip(range(num_sensors), sensor_probes.keys(),
+                                             dts, sensor_connections)]
     print("Created sensor processes.")
     sensor_processes = [Process(target=s.run, args=[proc_stop_event]) for s in sensors]
     for p in sensor_processes:

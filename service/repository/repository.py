@@ -99,7 +99,7 @@ class PlotRepositoryBackend:
         if num_sensors == 1:
             ncols = 1
         plt.ion()
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, sharex=True,
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, 
                                 figsize=figsize, squeeze = False)
         # So that in the case of a single axes, it also  becomes a list: 
         axs = list(chain.from_iterable(axs)) 
