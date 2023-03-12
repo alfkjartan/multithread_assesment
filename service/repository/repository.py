@@ -49,7 +49,26 @@ class ScreenRepository(Repository):
 
 
 class CSVRepository(Repository):
+    """ Repository that saves messages to csv file.
 
+    Tests
+    ----
+    >>> fname = '/tmp/csvtest.csv'
+    >>> rep = CSVRepository(fname)
+    >>> msg = Message.message()
+    >>> rep.append(msg)
+    >>> for m in rep: 
+    ...   m.id == msg.id 
+    ...   m.name == msg.name 
+    ...   m.data == msg.data 
+    ...   m.time_stamp == msg.time_stamp 
+    ... 
+    True
+    True
+    True
+    True
+    """
+    
     def __init__(self, filename : str):
         self.filename = filename
 
@@ -65,6 +84,24 @@ class CSVRepository(Repository):
             f.write(", ".join(map(str, message.__dict__.values())))
             f.write("\n")
 
+    def __iter__(self):
+        self.file_to_read = open(self.filename, 'r+')
+        # Read the first line to get the headings = attributes.
+        self.headers = [s.strip() for s in self.file_to_read.readline().split(',')]
+        return self
+        
+    def __next__(self):
+        line = self.file_to_read.readline()
+        if line == '':
+            raise StopIteration
+        
+        vals = [s.strip() for s in line.split(',')]
+        message = Message.message()
+        message.from_list(vals)
+
+        return message
+    
+        
 class PlotRepository(Repository):
     """
     Creates a figure and plots data as they arrive.

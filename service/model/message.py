@@ -25,11 +25,24 @@ class Message:
 
     Static methods
     --------------
-    int_message() -> Message
-       Returns an object for which the data field is an integer. 
+    message() -> Message
+       Returns a message object with arbitrary attributes.
+    from_json_str() -> Message
+       Returns a message object constructed from the json string. 
+
+    Tests
+    -----
+    >>> msg1 = Message.message()
+    >>> msg2 = Message.from_json_str(msg1.to_json())
+    >>> msg1 == msg2
+    True
+    >>> msg2.data += 2
+    >>> msg1 == msg2
+    False
      
     """
 
+        
     def __init__(self, id : int, name : str, data : Any, time_stamp = None):
         self.id = id
         self.name = name
@@ -55,13 +68,24 @@ class Message:
 
         return self
 
+    def from_list(self, l : list):
+        self.id = int(l[0])
+        self.name = str(l[1])
+        self.data = float(l[2])
+        self.time_stamp = str(l[3])
+    
     def from_json_str(j : str):
         m = Message(42, 'unknown', 1) # Just temporary
         return m.from_json(j)
 
-    def int_message():
+    def message():
         return Message(-1, "Unknown", 1)
 
+    def __eq__(self, other):
+        return (self.__dict__ == other.__dict__)
+    def __ne__(self, other):
+        return (self.__dict__ != other.__dict__)
+    
 
     def __str__(self) -> str:
         return f'id = {self.id},  name = {self.name}, data = {self.data}, timestamp = {self.time_stamp}'
