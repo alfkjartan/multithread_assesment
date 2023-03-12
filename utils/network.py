@@ -204,7 +204,6 @@ class SMClientConnection:
         if msglen > len(self.message.buf):
             raise MemoryError("Message too long for shared memory buffer")
 
-        print("Client got new data: ", d.to_json(), file=sys.stderr)
         self.message.buf[:msglen] = msg
         self.new_data_flag.buf[0] = 1 # Will signal consumer 
 
@@ -232,19 +231,41 @@ class SMServerConnection:
         
             #print("ServerConnection waiting  on ", self.cv, file=sys.stderr)
             m = SMServerConnection.chop_json(str(self.message.buf, 'utf8'))
-            print("Server got new data", m )
             self.logger.append(Message.from_json_str(m))
             self.new_data_flag.buf[0] = 0
 
     def chop_json(j : str) -> str:
-        """ Removes everything after the last curly bracket. """
-        jrev = j[::-1] # Reverses the string. 
-        if jrev.index('}') == 0:
-            #String is ok
-            return j
-        
-        _, p, s = jrev.partition('}')
-        return (p + s)[::-1]
+        """ Removes everything before and after a set of balanced curly brackets. 
+
+        Tests
+        -----
+        >>> j = '{"id": 0, "name": "Sensor-1", "data": -49, "time_stamp": "2023"}GARBAGE'
+        >>> jchopped = SMServerConnection.chop_json(j)
+        >>> jchopped == '{"id": 0, "name": "Sensor-1", "data": -49, "time_stamp": "2023"}'
+        True
+        >>> SMServerConnection.chop_json(jchopped) == jchopped
+        True
+        >>> j2 = jchopped + '}garbage}'
+        >>> jchopped2 = SMServerConnection.chop_json(j2)
+        >>> jchopped2 == jchopped
+        True
+       """
+
+        opening_brackets = 0
+        closing_brackets = 0
+        start_ind = -1
+        end_ind = -1
+        for ind, ch in zip(range(len(j)), j):
+            if ch == '{':
+                if start_ind < 0:
+                    start_ind = ind
+                opening_brackets += 1
+            if ch == '}':
+                closing_brackets += 1
+                if opening_brackets == closing_brackets:
+                    end_ind = ind
+                    break
+        return j[start_ind:end_ind+1]
 
 
 class PipeClientConnection:
