@@ -4,7 +4,7 @@ import socket
 import multiprocessing
 from multiprocessing import shared_memory
 from multiprocessing import connection
-from threading import Thread
+from threading import Thread, Event
 from service.model.message import Message
 from service.repository.logging import Logger
 
@@ -81,7 +81,12 @@ class ClientConnection:
             else:
                 totalsent = totalsent + sent
         return True
-            
+
+    def close(self):
+        """ Called  by sensor when shutting down."""
+        print("Closing down socket.")
+        self.sckt.close()
+        
 class ServerConnection(metaclass=ServerSingletonMeta):
     """ Representation of the server side connection for communication over sockets.
 
@@ -107,12 +112,15 @@ class ServerConnection(metaclass=ServerSingletonMeta):
         self.sckt = sckt
         self.logger = logger
         
-    def __call__(self):
+    def __call__(self, stop_event : Event):
         """ Function run by thread. Receives data over the socket, parses and calls logger.
         
             Code adapted from https://docs.python.org/3/howto/sockets.html
        """
         while True:
+            if stop_event.is_set():
+                print(f"ServerConnection with socket {self.sckt} received stop signal")
+                break
             self.logger.append(Message.from_json_str(self.__read()))
             
     def __read(self) -> str:
@@ -171,16 +179,32 @@ class Server:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.logger = logger
 
-    def run(self):
+    def run(self, stop_event : Event):
+        print(f"")
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen()
-        print("Server listening")
+        print(f"Server host = {self.host} and port = {self.port} is listening.")
+        client_sockets = []
         while True:
+            if stop_event.is_set():
+                print("Server received stop signal.")
+                self.server_socket.close()
+                for cs in client_sockets:
+                    cs.close()
+                    
             client_sock, addr = self.server_socket.accept()
+
+            client_sockets.append(client_sock)
+            
             conn = ServerConnection(client_sock, self.logger)
             print("Server accepting connection")
-            Thread(target=conn).start()
-            
+            Thread(target=conn, args=[stop_event]).start()
+    def close(self):
+        print(f"Server host = {self.host} and port = {self.port} is closing down.")
+        self.server_socket.close()
+        for cs in client_sockets:
+            cs.close()
+        
 
 class SMClientConnection:
     """ Represents the client side of the communication. Holds the shared memory and the condition 
@@ -210,7 +234,13 @@ class SMClientConnection:
     def is_available(self):
         return True # Always there
 
-        
+    def close(self):
+        """ Called by Sensor object when receiving stop signal."""
+        print("Closing and unlinking shared memory for ", self)
+        self.message.close()
+        self.message.unlink()
+        self.new_data_flag.close()
+        self.new_data_flag.unlink()
 
 class SMServerConnection:
     """ Code run in a separate thread which will block at client object waiting for update to the 
@@ -223,17 +253,36 @@ class SMServerConnection:
         self.new_data_flag = shared_memory.SharedMemory(client.new_data_flag.name)
         self.new_data_flag.buf[0] = 0
         self.wait_period = 0.001
-    def run(self):
+    def run(self, stop_event : Event):
         print("ServerConnection ", self, " is running")
         while True:
-            while not self.new_data_flag.buf[0]:
-                time.sleep(self.wait_period)
-        
-            #print("ServerConnection waiting  on ", self.cv, file=sys.stderr)
+            if stop_event.is_set():
+                print("ServerConnection ", self, " received stop signal")
+                self.message.close()
+                self.new_data_flag.close()
+                break
+
+            try: 
+                while not self.new_data_flag.buf[0]:
+                    time.sleep(self.wait_period)
+            except TypeError:
+                # TypeError is raised as a consequence  when self.new_data_flag is unlinked in other thread.
+                # Use this as a signal to exit
+                print("ServerConnection ", self, " closing down.")
+                self.message.close()
+                self.new_data_flag.close()
+                break
+
+                
             m = SMServerConnection.chop_json(str(self.message.buf, 'utf8'))
             self.logger.append(Message.from_json_str(m))
             self.new_data_flag.buf[0] = 0
 
+    def close(self):
+        print("ServerConnection ", self, " Closing down")
+        self.message.close()
+        self.new_data_flag.close()
+        
     def chop_json(j : str) -> str:
         """ Removes everything before and after a set of balanced curly brackets. 
 
@@ -281,6 +330,10 @@ class PipeClientConnection:
     def is_available(self):
         return True # Always there
 
+    def close(self):
+        print("Closing down pipe.")
+        self.pipe.close()
+        
 class PipeServerConnection:
     """ Code run in a separate thread which will block at client object waiting for update to the 
     shared memory (Message object). The message object is passed on to the logger.
@@ -290,12 +343,27 @@ class PipeServerConnection:
         self.logger = logger
         self.pipe = server_conn
         
-    def run(self):
+    def run(self, stop_event : Event):
         print("ServerConnection ", self, " is running")
         while True:
-            j_str = self.pipe.recv()
+            if stop_event.is_set():
+                print("ServerConnection ", self, " is closing down")
+                self.pipe.close()
+                break
+                
+            try:
+                j_str = self.pipe.recv()
+            except EOFError:
+                print("ServerConnection ", self, " is closing down")
+                self.pipe.close()
+                break
+            
             self.logger.append(Message.from_json_str(j_str))
 
+    def close(self):
+        print("Server pipe closing down.")
+        self.pipe.close()
+        
 class Connection:
     """ Factory class for instantiating connection objects that handle the communication between sensors and logger.
 

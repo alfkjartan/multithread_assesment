@@ -3,8 +3,11 @@ import random
 import sys
 import getopt
 from datetime import datetime
+from multiprocessing import Event as ProcessEvent
 from multiprocessing import Process
 from threading import Thread
+from threading import Event as ThreadEvent
+from functools import partial
 from service.repository.logging import Logger
 from utils.network import Connection
 from service.model.message import Message
@@ -44,8 +47,7 @@ if __name__ == '__main__':
             log_to_screen = True
 
 
-    print(connection_type)
-
+            
     # Setting up the logger
     logger = Logger()
     logger.add_csv_repository(csv_logfile)
@@ -55,45 +57,56 @@ if __name__ == '__main__':
 
         
     if connection_type == 'socket':
-        connection_factory = Connection.create_socket_connection
-        # Setting up and starting the server
-        #server = Connnection.create_server(host, port, logger)
-        #server_thread = Thread(target = server.run)
-        #print("Running server thread")
-        #server_thread.start()
-        #server_threads = [server_thread,]
-        # Creating the connection objects
-        #sensor_connections = [Connection.create_client_connection(host, port) for _ in range(num_sensors)]
+        connection_factory = partial(Connection.create_socket_connection, host=host, port=port)
     elif connection_type == 'shared_memory':
         connection_factory = Connection.create_memory_connection
     elif connection_type == 'pipe':
         connection_factory = Connection.create_pipe_connection
 
+    # Creating Event objects to signal stop of simulation
+    proc_stop_event = ProcessEvent()
+    thread_stop_event = ThreadEvent()
+
+    # Setting up connections to handle communication
     sensor_connections = []
+    server_connections = [] # Need acces to these for closing down gracefully
     server_threads = []
     for _ in range(num_sensors):
         server_connection, client_connection = connection_factory(logger) 
-        server_thread = Thread(target = server_connection.run)
+        server_thread = Thread(target = server_connection.run, args = [thread_stop_event])
         if not server_thread.is_alive():
             server_thread.start()
         server_threads.append(server_thread)
+        server_connections.append(server_connection)
         sensor_connections.append(client_connection)
-            
+          
     # Creating and spawning the sensors
     dts = np.arange(1, num_sensors+2) # The sampling period of the sensors
     sensors = [Sensor(id, f'Sensor-{dt}', sampling_period = dt,
                       probe = lambda : random.randint(-100, 100),
                       connection = conn) for id, dt, conn in zip(range(num_sensors), dts, sensor_connections)]
-    print("Created sensor processes")
-    sensor_processes = [Process(target=s.run) for s in sensors]
+    print("Created sensor processes.")
+    sensor_processes = [Process(target=s.run, args=[proc_stop_event]) for s in sensors]
     for p in sensor_processes:
         p.start()
-    print("Started sensors")
+    print("Started sensors.")
 
+    input = input("Press return to end simulation")
+
+    thread_stop_event.set()
+    proc_stop_event.set()
     
     for p in sensor_processes:
         p.join()
+
+    print("All sensor processes done.")
+
+    for sc in server_connections:
+        sc.close()
+        
     for s in server_threads:
         s.join()
+
+    print("All server threads done. Exiting.")
 
     

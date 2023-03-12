@@ -1,5 +1,6 @@
 from typing import Callable
 import time
+from threading import Event
 from utils.network import ClientConnection
 from service.model.message import Message
 
@@ -15,13 +16,17 @@ class Sensor:
         
         self.message = Message(id, name, 0)
         
-    def run(self):
+    def run(self, stop_event : Event):
         while True:
+            time.sleep(self.dt)
+            if stop_event.is_set():
+                print(f"{self.name} received stop event. Closing connection.")
+                self.connection.close()
+                break
             self.acquire()
             if not self.connection.is_available():
                 break
             self.connection.send(self.message)
-            time.sleep(self.dt)
 
 
     def acquire(self):
