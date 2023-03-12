@@ -26,12 +26,12 @@ if __name__ == '__main__':
     sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
     log_to_screen = False
     log_to_plot = False
-    cpu_sensor_data = False
+    system_sensor_data = False
     
     try:
         opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s:o",
                                    ["num_sensors=", "connection_type=", "plot", 
-                                    "csv_file", "db_file", "screen_output", "cpu_data"])
+                                    "csv_file", "db_file", "screen_output", "system_data"])
     except getopt.GetoptError:
         sys.exit(2)
 
@@ -48,9 +48,9 @@ if __name__ == '__main__':
             sqlite_dbfile = arg
         elif opt in ("-s", "--screen_output"):
             log_to_screen = True
-        elif opt in ("--cpu_data"):
+        elif opt in ("--system_data"):
             # Use functions from psutil module to generate sensor data 
-            cpu_sensor_data = True
+            system_sensor_data = True
             
 
             
@@ -86,7 +86,7 @@ if __name__ == '__main__':
         sensor_connections.append(client_connection)
           
     # Creating and spawning the sensors
-    if cpu_sensor_data:
+    if system_sensor_data:
         dts = [1]*4 # The sampling period of the sensors
         sensor_probes = {'CPU utilization (percent)' : cpu_utilization,
                          'Load average (divide with number of cpu cores)' : load_average,
