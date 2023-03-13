@@ -110,7 +110,7 @@ class PlotRepository(Repository):
     loop, a separate process is spawn for the plot.
     """
 
-    def __init__(self, num_sensors : int, figsize=(10,10)):
+    def __init__(self, num_sensors : int, figsize=(14,10)):
         self.stop_event = Event()
         self.message_queue = Queue()
         self.plot_proc = Process(target=PlotRepositoryBackend.run,
@@ -129,7 +129,7 @@ class PlotRepositoryBackend:
     Creates a figure and plots data as they arrive.
     """
 
-    def run(stop_event : Event, queue : Queue,  num_sensors : int, figsize=(10,10)):
+    def run(stop_event : Event, queue : Queue,  num_sensors : int, figsize=(14,10)):
 
         nrows = int(num_sensors/2) + num_sensors % 2
         ncols = 2

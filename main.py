@@ -43,6 +43,7 @@ if __name__ == '__main__':
             connection_type = arg
         elif opt in ("-p", "--plot"):
             log_to_plot = True
+            num_sensors = 4
         elif opt in ("-f", "--csv_file"):
             csv_logfile = arg
         elif opt in ("-s", "--screen_output"):
@@ -53,7 +54,7 @@ if __name__ == '__main__':
         elif opt in ("--port"):
             # Use functions from psutil module to generate sensor data 
             port = int(arg)
-            
+
 
             
     # Setting up the logger
@@ -111,7 +112,7 @@ if __name__ == '__main__':
                          'Memory available (Gb)' : memory_available,
                          'CPU temperature (Celcius)' : cpu_temp}
     else:
-        dts = np.arange(1, num_sensors+2) # The sampling period of the sensors
+        dts = np.arange(1, num_sensors+2)/num_sensors # The sampling period of the sensors
         sensor_probes = {}
         for dt_ in range(num_sensors):
             sensor_probes[f'Sensor-{dt_}'] = lambda : random.randint(-100, 100)
@@ -119,7 +120,7 @@ if __name__ == '__main__':
     sensors = [Sensor(id, name, sampling_period = dt,
                       probe=sensor_probes[name],
                       connection = conn) \
-               for id, name, dt, conn in zip(range(num_sensors), sensor_probes.keys(),
+               for id, name, dt, conn in zip(range(len(dts)), sensor_probes.keys(),
                                              dts, sensor_connections)]
     print("Created sensor processes.")
     sensor_processes = [Process(target=s.run, args=[proc_stop_event]) for s in sensors]
