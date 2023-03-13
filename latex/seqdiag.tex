@@ -29,7 +29,8 @@
   \newinst[\hnd]{rone}{repo 1}
   \newinst[\hnd]{rtwo}{repo 2}
   \newthread[red!60!black]{lt}{log thread}
-  
+
+  \begin{sdblock}[gray!6]{Run Loop}{The main loop}
   \begin{messcall}{lt}{\_\_read()}{sconn}{}
     \begin{call}{sconn}{recv()}{ss}{json}
       \postlevel
@@ -67,6 +68,6 @@
     \end{messcall}
     \end{messcall}
 
-    
+  \end{sdblock}
 \end{sequencediagram}
 \end{document}
