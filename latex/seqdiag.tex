@@ -1,0 +1,72 @@
+\documentclass[margin=2mm]{standalone}
+
+\usepackage[
+% school,
+% simplified
+]{pgf-umlsd}
+
+
+%\renewcommand{\umltextcolor}{red}
+%\renewcommand{\umlfillcolor}{black!6}
+%\renewcommand{\umldrawcolor}{red!60!black}
+
+\begin{document}
+
+\def\hnd{1}
+
+\begin{sequencediagram}[
+  % show background grid
+  ]
+
+  \newthread[blue!60!orange]{st}{sensor thread}
+  \newinst[\hnd]{sensor}{sensor}
+  \newinst[\hnd]{probe}{probe}
+  \newinst[\hnd]{conn}{client conn}
+  \newinst[\hnd]{cs}{client socket}
+  \newinst[0]{ss}{server socket}
+  \newinst[\hnd]{sconn}{server conn}
+  \newinst[\hnd]{l}{logger}
+  \newinst[\hnd]{rone}{repo 1}
+  \newinst[\hnd]{rtwo}{repo 2}
+  \newthread[red!60!black]{lt}{log thread}
+  
+  \begin{messcall}{lt}{\_\_read()}{sconn}{}
+    \begin{call}{sconn}{recv()}{ss}{json}
+      \postlevel
+      \postlevel
+      \postlevel
+      \postlevel
+      \postlevel
+      \postlevel
+      \postlevel
+    \end{call}
+    \begin{messcall}{sconn}{append()}{l}{}
+    \begin{messcall}{l}{append()}{rone}{}
+    \end{messcall}
+    \begin{messcall}{l}{append()}{rtwo}{}
+    \end{messcall}
+    \end{messcall}
+    
+  \end{messcall}
+
+  \setthreadbias{east}
+    \prelevel\prelevel\prelevel\prelevel
+    \prelevel\prelevel\prelevel\prelevel
+    \prelevel\prelevel\prelevel\prelevel
+    \prelevel\prelevel\prelevel
+
+    \begin{call}{st}{wait()}{st}{}
+    \end{call}
+
+    \begin{messcall}{st}{acquire()}{sensor}{data}
+      \begin{call}{sensor}{\_\_call()\_\_}{probe}{data}
+      \end{call}
+    \begin{messcall}{sensor}{send()}{conn}{}
+      \begin{messcall}{conn}{send()}{cs}{}
+      \end{messcall}
+    \end{messcall}
+    \end{messcall}
+
+    
+\end{sequencediagram}
+\end{document}
