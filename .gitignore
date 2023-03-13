@@ -7,3 +7,8 @@ __pycache__
 *test.txt
 *.csv
 *checkpoint*
+*.log
+*.out
+*~
+*.toc
+*.aux

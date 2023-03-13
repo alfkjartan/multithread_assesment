@@ -60,10 +60,10 @@ if __name__ == '__main__':
             
     # Setting up the logger
     logger = Logger()
-    logger.add_repository(Repository.csv_repository(csv_logfile))
+    logger.add_repository(Repository.create_csv_repository(csv_logfile))
     #TODO implement logging to sqlite database
-    if log_to_screen: logger.add_repository(Repository.screen_dump())
-    if log_to_plot: logger.add_repository(Repository.plot(num_sensors))
+    if log_to_screen: logger.add_repository(Repository.create_screen_dump())
+    if log_to_plot: logger.add_repository(Repository.create_plot(num_sensors))
     log_list = [] # List to store logged messages in memory.
     logger.add_repository(log_list)
     

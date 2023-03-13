@@ -29,13 +29,13 @@ class Repository(abc.ABC):
 
     
     # Factory methods
-    def screen_dump(where=sys.stdout):
+    def create_screen_dump(where=sys.stdout):
         return ScreenRepository(where)
 
-    def csv_repository(filename : str):
+    def create_csv_repository(filename : str):
         return CSVRepository(filename)
 
-    def plot(num_sensors : int):
+    def create_plot(num_sensors : int):
         return PlotRepository(num_sensors)
 
 class ScreenRepository(Repository):

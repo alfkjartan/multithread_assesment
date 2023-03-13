@@ -28,7 +28,7 @@ Don't forget to include the requirements file.
 
 # Solution
 ## Design principles
-The most important principle in software design is to make the code easy to understand, extend and  maintain. Complexity should be reduced as much as possible.
+The most important principle in software design is to make the code easy to understand, extend and  maintain. Complexity is the enemy.
 ### Encapsulate what varies
 Those parts of the code that we expect to be subject to change in the future should be isolated from the parts that can be assumed to be stable. It should be easy to replace parts that are subject to frequent changes without having to modify other parts.
 ### Strive for deep classes and functions
@@ -72,15 +72,15 @@ The `Repositiory` objects are in essence like lists, and in fact a regular `list
     * To ensure there is only one `Server` object listening for connections on the server socket. 
   * [Observer.](https://refactoring.guru/design-patterns/observer) Used in the `Logger` class to broadcast incoming messages several `Repository` objects.
   * [Strategy.](https://refactoring.guru/design-patterns/strategy) Used in the `Sensor` class, to separate the data acquisition part (the `probe` callable) which can the vary depending on the type of sensor being simulated. See [base_sensor.py](./sensors/base_sensor.py).
-  * [Iterator.](https://refactoring.guru/design-patterns/iterator) Used in the `CSVRepository` class, to make it possible to loop over the messages saved on disk. See [repository.py](./service/repository/repository.py)
+  * [Iterator.](https://refactoring.guru/design-patterns/iterator) Implemented in the `CSVRepository` class, to make it possible to loop over the messages saved on disk. See [repository.py](./service/repository/repository.py)
   
 ## Multithreading and multiprocessing implemented
   * Each sensor runs in a separate process. Three different types of inter-process communication is implemented:
-	* [Network socket.](https://docs.python.org/3/library/socket.html) This is very flexible, and allows for communication between different computers.
-	* [Shared memory.](https://docs.python.org/3.8/library/multiprocessing.shared_memory.html) This is the fastest way of communication, by sharing physical memory. No copying involved (not an issue for this application, since the  messages sent from the sensors are small in size).
-	* [Pipes.](https://docs.python.org/3.8/library/multiprocessing.html#pipes-and-queues) This is a more convenient way of communication than shared memory.
- * Moreover, since it was necessary that matplotlib runs in a main thread to be able to plot data, a seperate process is started in `PlotRepository`, and communication is over a [Queue,](https://docs.python.org/3.8/library/multiprocessing.html#pipes-and-queues) which even more convenient than pipe.
+	* [Network socket.](https://docs.python.org/3/library/socket.html) This is very flexible, and allows for communication between different computers (distributed computing).
+	* [Shared memory.](https://docs.python.org/3.8/library/multiprocessing.shared_memory.html) This is the fastest possible way of communication, by sharing physical memory space, since no copying of data is nvolved. On the other hand, this is not really an issue for this application, since the  messages sent from the sensors are small in size.
+	* [Pipes.](https://docs.python.org/3.8/library/multiprocessing.html#pipes-and-queues) This is a more convenient way of implementing communication than shared memory. Processes write to- and read from the pipe, and the underlying synchronization of access to the memory is handled for you.
+ * Since it was necessary that matplotlib runs in a main thread to be able to plot data, a seperate process is started in `PlotRepository`, and communication is over a [Queue,](https://docs.python.org/3.8/library/multiprocessing.html#pipes-and-queues) to which the two processes put and get elements.
 
 ## Running the simulation
 The main script takes the following arguments and options:
-- Locally
+
