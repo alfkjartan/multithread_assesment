@@ -34,7 +34,7 @@ Classes/modules must be connected to make the software have the functionality it
 ### Encapsulate what varies
 Those parts of the code that we expect to be subject to change in the future should be isolated from the parts that can be assumed to be stable. It should be easy to replace parts that are subject to frequent changes without having to modify other parts.
 ### Classes should be closed for modification - open for extension
-Classes should be possible to extend with new functionality without modifying existing code.
+Classes should be possible to extend with new functionality without modifying existing code. This is one of the reasons composition is preferred over inheritance.
 ### Strive for deep classes and functions
 According to [John Ousterhout](https://youtu.be/bmSAYlu0NcY): Classes and functions should provide substantial functionality, but have a simple interface. The purpose is to make classes and functions easy to use. This will reduce complexity. 
 
@@ -87,5 +87,7 @@ The `Repositiory` objects are in essence like lists, and in fact a regular `list
  * Since it was necessary that matplotlib runs in a main thread to be able to plot data, a seperate process is started in `PlotRepository`, and communication is over a [Queue,](https://docs.python.org/3.8/library/multiprocessing.html#pipes-and-queues) to which the two processes put and get elements.
 
 ## Running the simulation
-The main script takes the following arguments and options:
+The main script takes the following options and arguments:
+- `--connection_type` can be `socket`|`pipe`|`shared_memory`
+
 
