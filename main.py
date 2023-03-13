@@ -2,7 +2,6 @@ import numpy as np
 import random
 import sys
 import getopt
-import psutil
 from datetime import datetime
 from multiprocessing import Event as ProcessEvent
 from multiprocessing import Process
@@ -20,7 +19,7 @@ if __name__ == '__main__':
     # Default settings
     connection_type = 'socket'
     host = '127.0.0.1'
-    port = 33332
+    port = 33330
     num_sensors = 5
     csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d.csv")
     sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
@@ -29,10 +28,12 @@ if __name__ == '__main__':
     system_sensor_data = False
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s:o",
+        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s:o:r",
                                    ["num_sensors=", "connection_type=", "plot", 
-                                    "csv_file", "db_file", "screen_output", "system_data"])
+                                    "csv_file", "db_file", "screen_output", "system_data",
+                                    "port="])
     except getopt.GetoptError:
+        print("Error in parsing arguments")
         sys.exit(2)
 
     for opt, arg in opts:
@@ -51,6 +52,9 @@ if __name__ == '__main__':
         elif opt in ("--system_data"):
             # Use functions from psutil module to generate sensor data 
             system_sensor_data = True
+        elif opt in ("--port"):
+            # Use functions from psutil module to generate sensor data 
+            port = int(arg)
             
 
             
@@ -60,7 +64,9 @@ if __name__ == '__main__':
     #TODO implement logging to sqlite database
     if log_to_screen: logger.add_repository(Repository.screen_dump())
     if log_to_plot: logger.add_repository(Repository.plot(num_sensors))
-        
+    log_list = [] # List to store logged messages in memory.
+    logger.add_repository(log_list)
+    
     if connection_type == 'socket':
         connection_factory = partial(Connection.create_socket_connection, host=host, port=port)
     elif connection_type == 'shared_memory':
@@ -78,16 +84,30 @@ if __name__ == '__main__':
     server_threads = []
     for _ in range(num_sensors):
         server_connection, client_connection = connection_factory(logger) 
-        server_thread = Thread(target = server_connection.run, args = [thread_stop_event])
-        if not server_thread.is_alive():
-            server_thread.start()
-        server_threads.append(server_thread)
-        server_connections.append(server_connection)
         sensor_connections.append(client_connection)
+        
+        if server_connections != []:
+            if connection_type == 'socket':
+                # Singleton server connection used with socket communication
+                # Avoid starting new thread to serve the same ip adress
+                pass
+            else:
+                # Shared memory or pipe communications
+                server_thread = Thread(target = server_connection.run, args = [thread_stop_event])
+                server_thread.start()
+                server_connections.append(server_connection)
+                server_threads.append(server_thread)
+
+        else: # Empty list server_connections, so append the first
+            server_thread = Thread(target = server_connection.run, args = [thread_stop_event])
+            server_thread.start()
+            server_connections.append(server_connection)
+            server_threads.append(server_thread)
+
           
     # Creating and spawning the sensors
     if system_sensor_data:
-        dts = [1]*4 # The sampling period of the sensors
+        dts = [0.5, 5, 0.5, 0.5] # The sampling period of the sensors
         sensor_probes = {'CPU utilization (percent)' : cpu_utilization,
                          'Load average (divide with number of cpu cores)' : load_average,
                          'Memory available (Gb)' : memory_available,
@@ -109,7 +129,7 @@ if __name__ == '__main__':
         p.start()
     print("Started sensors.")
 
-    input = input("Press return to end simulation")
+    input("Press return to end simulation")
 
     thread_stop_event.set()
     proc_stop_event.set()
@@ -125,6 +145,13 @@ if __name__ == '__main__':
     for s in server_threads:
         s.join()
 
-    print("All server threads done. Exiting.")
+    print("All server threads done.")
 
-    
+
+    print("\n\n-----------------------------------------------------------\n")
+    print("Logged data\n")
+    for m in log_list:
+        print(m)
+    print("\n\n-----------------------------------------------------------\n")
+
+

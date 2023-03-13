@@ -138,6 +138,7 @@ class PlotRepositoryBackend:
         plt.ion()
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, 
                                 figsize=figsize, squeeze = False)
+        plt.show()
         # So that in the case of a single axes, it also  becomes a list: 
         axs = list(chain.from_iterable(axs)) 
         start_times = [None]*num_sensors 

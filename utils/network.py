@@ -64,7 +64,7 @@ class ClientConnection:
     def __connect(self) -> None:
         con = self.sckt.connect((self.host, self.port))
         self.connected = True
-        print("Client connected. Type of return value ", type(con), file=sys.stderr)
+        print("Client connected")
 
     def send(self, d : Message) -> bool:
         if not self.connected:
@@ -87,7 +87,7 @@ class ClientConnection:
         print("Closing down socket.")
         self.sckt.close()
         
-class ServerConnection(metaclass=ServerSingletonMeta):
+class ServerConnection():
     """ Representation of the server side connection for communication over sockets.
 
     Singleton.
@@ -152,7 +152,7 @@ class ServerConnection(metaclass=ServerSingletonMeta):
             
         return b''.join(chunks)
         
-class Server:
+class Server(metaclass=ServerSingletonMeta):
     """ Representation of the server side for communication over sockets. Listens for 
     connections, instantiates  ServerConnection objects and spawns threads to handle communication. 
 
@@ -178,23 +178,24 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.logger = logger
+        self.client_sockets = []
 
+        
     def run(self, stop_event : Event):
         print(f"")
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen()
-        print(f"Server host = {self.host} and port = {self.port} is listening.")
-        client_sockets = []
+        print(f"Server {self.host}:{self.port} is listening.")
         while True:
             if stop_event.is_set():
                 print("Server received stop signal.")
                 self.server_socket.close()
-                for cs in client_sockets:
+                for cs in self.client_sockets:
                     cs.close()
                     
             client_sock, addr = self.server_socket.accept()
 
-            client_sockets.append(client_sock)
+            self.client_sockets.append(client_sock)
             
             conn = ServerConnection(client_sock, self.logger)
             print("Server accepting connection")
@@ -202,7 +203,7 @@ class Server:
     def close(self):
         print(f"Server host = {self.host} and port = {self.port} is closing down.")
         self.server_socket.close()
-        for cs in client_sockets:
+        for cs in self.client_sockets:
             cs.close()
         
 
