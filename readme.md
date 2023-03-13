@@ -29,18 +29,20 @@ Don't forget to include the requirements file.
 # Solution
 ## Design principles
 The most important principle in software design is to make the code easy to understand, extend and  maintain. Complexity is the enemy.
+### Avoid unnecessary dependencies
+Classes/modules must be connected to make the software have the functionality it should and work as intended. But dependencies should be kept to a minimum so that changes in one class/module do not break code in other parts of the software.
 ### Encapsulate what varies
 Those parts of the code that we expect to be subject to change in the future should be isolated from the parts that can be assumed to be stable. It should be easy to replace parts that are subject to frequent changes without having to modify other parts.
-### Strive for deep classes and functions
-According to [John Ousterhout](https://youtu.be/bmSAYlu0NcY): Classes and functions should provide substantial functionality, but have a simple interface. The purpose is to make classes and functions easy to use. This will reduce complexity. 
 ### Classes should be closed for modification - open for extension
 Classes should be possible to extend with new functionality without modifying existing code.
+### Strive for deep classes and functions
+According to [John Ousterhout](https://youtu.be/bmSAYlu0NcY): Classes and functions should provide substantial functionality, but have a simple interface. The purpose is to make classes and functions easy to use. This will reduce complexity. 
 
 ## Design requirements
 ### Constraints
-- The simulated sensors should run each in a different process. This is closest to a real scenario.
+- Each simulated sensors should run in a different process. This is closest to a real scenario.
 - The system should close down gracefully, releasing any resources before shutting down.
-### Candidates for variation/modification
+### Candidates for variation
 - The **storage used for logging**. Logging could go to file (csv, sqlite3), to network-connected SQL-database, saved in memory, or simply printed to screen.  And in any combinations of the previous.
 - The part of the sensor that actually **acquires data**. This is referred to here as the probe. In the simulation model developed here this is just a function that returns a number. In practice, it would be something more interesting.
 - The **data model**. This is related to the previous item. Some sensors will generate data of different kind, including array-like data. Whenever possible, objects that receives data should be agnostic to the structure of the message, to avoid dependencies. 

@@ -109,7 +109,18 @@ keywordstyle=\color{blue}
     \attribute{filename : str}
     \operation{append( m : Message )}
   \end{class}
-  
+
+
+    \begin{class}[text width = 5cm]{Message}{1,-9}
+      \attribute{id : int}
+      \attribute{name : str}
+      \attribute{data : Number}
+      \attribute{time\_stamp : str}
+      \operation{to\_json( ) \(\rightarrow\) str }
+      \operation{from\_json( j : str) }
+      \operation{from\_list( l : list) }
+  \end{class}
+
 
 \end{tikzpicture}
 \end{document}
