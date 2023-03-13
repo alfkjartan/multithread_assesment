@@ -89,5 +89,11 @@ The `Repositiory` objects are in essence like lists, and in fact a regular `list
 ## Running the simulation
 The main script takes the following options and arguments:
 - `--connection_type` can be `socket`|`pipe`|`shared_memory`
+- `--port` exects and integer. The port number. Local host is used. The setting has no effect unless connection type is socket.
+- `--system_data` is a flag. If set, the sensors get data about the system from `psutil` instead of random numbers.
+- `--num_sensors` expects an integer. If `--system_data` is chosen, it has no effect.
+- `--csv_file` expects a string. The file to log to.
+- `--log_to_screen` is a flag. If set, sensor data will be dumped to the screen (in addition to logged to file).
+- `--log_to_plot` is a flag. If set, sensor data will be plotted (in addition to logged to file).
 
 

@@ -22,15 +22,15 @@ if __name__ == '__main__':
     port = 33330
     num_sensors = 5
     csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d.csv")
-    sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
+    # Not implemented sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
     log_to_screen = False
     log_to_plot = False
     system_sensor_data = False
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:f:d:s:o:r",
+        opts, args = getopt.getopt(sys.argv[1:],"n:c:p:c:s:o:r",
                                    ["num_sensors=", "connection_type=", "plot", 
-                                    "csv_file", "db_file", "screen_output", "system_data",
+                                    "csv_file", "screen_output", "system_data",
                                     "port="])
     except getopt.GetoptError:
         print("Error in parsing arguments")
@@ -45,8 +45,6 @@ if __name__ == '__main__':
             log_to_plot = True
         elif opt in ("-f", "--csv_file"):
             csv_logfile = arg
-        elif opt in ("-d", "--db_file"):
-            sqlite_dbfile = arg
         elif opt in ("-s", "--screen_output"):
             log_to_screen = True
         elif opt in ("--system_data"):
