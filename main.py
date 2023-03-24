@@ -8,7 +8,6 @@ from multiprocessing import Process
 from threading import Thread
 from threading import Event as ThreadEvent
 from functools import partial
-from service.repository.logging import Logger
 from service.repository.repository import Repository
 from utils.network import Connection
 from service.model.message import Message
@@ -57,14 +56,12 @@ if __name__ == '__main__':
 
 
             
-    # Setting up the logger
-    logger = Logger()
-    logger.add_repository(Repository.create_csv_repository(csv_logfile))
+    # Setting up the repositories
+    logger = Repository()
+    logger.create_csv_repository(csv_logfile).add_repository([])
     #TODO implement logging to sqlite database
-    if log_to_screen: logger.add_repository(Repository.create_screen_dump())
-    if log_to_plot: logger.add_repository(Repository.create_plot(num_sensors))
-    log_list = [] # List to store logged messages in memory.
-    logger.add_repository(log_list)
+    if log_to_screen: logger.create_screen_dump()
+    if log_to_plot: logger.create_plot(num_sensors)
     
     if connection_type == 'socket':
         connection_factory = partial(Connection.create_socket_connection, host=host, port=port)
@@ -149,7 +146,7 @@ if __name__ == '__main__':
 
     print("\n\n-----------------------------------------------------------\n")
     print("Logged data\n")
-    for m in log_list:
+    for m in logger:
         print(m)
     print("\n\n-----------------------------------------------------------\n")
 

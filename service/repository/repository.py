@@ -2,41 +2,54 @@ import sys
 import abc
 from datetime import datetime
 import matplotlib.pyplot as plt
-from multiprocessing import Process, Queue, Event
-from queue import Empty
+import multiprocessing as mp
+import threading as mt
+import queue as qmod
 from itertools import chain
 import numpy as np
 from service.model.message import Message
 
 
-class Repository(abc.ABC):
+class Repository():
     """ 
     Storage or visualization of incoming messages.
+
+    Changed to use Composite pattern.
     
     Repository objects are list-like, so they implement `append` and are iterable. 
     
     """
-    @abc.abstractmethod
+
+    def __init__(self):
+        self.repositories = []
+        
     def append(self, message: Message):
-        pass
+        for r in self.repositories:
+            r.append(message)
 
     def __iter__(self):
         # The objects themselves are iterable
-        return self 
+        return chain(*self.repositories)
 
     def __next__(self):
+        """Must be overridden by subclasses that actually iterates"""
         raise StopIteration()
 
-    
+    def add_repository(self, r):
+        self.repositories.append(r)
+        
     # Factory methods
-    def create_screen_dump(where=sys.stdout):
-        return ScreenRepository(where)
+    def create_screen_dump(self, where=sys.stdout):
+        self.repositories.append(ScreenRepository(where))
+        return self
 
-    def create_csv_repository(filename : str):
-        return CSVRepository(filename)
+    def create_csv_repository(self, filename : str):
+        self.repositories.append(CSVRepository(filename))
+        return self
 
-    def create_plot(num_sensors : int):
-        return PlotRepository(num_sensors)
+    def create_plot(self,num_sensors : int):
+        self.repositories.append(PlotRepository(num_sensors))
+        return self
 
 class ScreenRepository(Repository):
 
@@ -71,18 +84,38 @@ class CSVRepository(Repository):
     
     def __init__(self, filename : str):
         self.filename = filename
-
-        self.header_written = False
+        self.q = qmod.Queue()
+        self.stop_event = mt.Event()
+        self.worker_thread = mt.Thread(target=CSVRepository.write,
+                                       args=(filename, self.q, self.stop_event))
+        self.worker_thread.start()
         
     def append(self, message : Message):
-        if not self.header_written:
-            with open(self.filename, 'w') as f:
-                f.write(", ".join(map(str, message.__dict__.keys())))
+        if message.data is None:
+            # This is a flag raied by the sensor process that it is closing down.
+            self.stop_event.set()
+            return
+        self.q.put(message)
+
+    def write(filename : str, q : qmod.Queue, stop_event : mt.Event):
+        header_written = False
+        while True:
+            if stop_event.is_set():
+                break
+
+            try:
+                message = q.get(timeout=0.01)
+            except qmod.Empty:
+                continue
+
+            if not header_written:
+                with open(filename, 'w') as f:
+                    f.write(", ".join(map(str, message.__dict__.keys())))
+                    f.write("\n")
+                    header_written = True
+            with open(filename, 'a') as f:
+                f.write(", ".join(map(str, message.__dict__.values())))
                 f.write("\n")
-            self.header_written = True
-        with open(self.filename, 'a') as f:
-            f.write(", ".join(map(str, message.__dict__.values())))
-            f.write("\n")
 
     def __iter__(self):
         self.file_to_read = open(self.filename, 'r+')
@@ -111,9 +144,9 @@ class PlotRepository(Repository):
     """
 
     def __init__(self, num_sensors : int, figsize=(14,10)):
-        self.stop_event = Event()
-        self.message_queue = Queue()
-        self.plot_proc = Process(target=PlotRepositoryBackend.run,
+        self.stop_event = mp.Event()
+        self.message_queue = mp.Queue()
+        self.plot_proc = mp.Process(target=PlotRepositoryBackend.run,
                                  args=[self.stop_event, self.message_queue, num_sensors, figsize])
         self.plot_proc.start()
         
@@ -129,7 +162,7 @@ class PlotRepositoryBackend:
     Creates a figure and plots data as they arrive.
     """
 
-    def run(stop_event : Event, queue : Queue,  num_sensors : int, figsize=(14,10)):
+    def run(stop_event : mp.Event, queue : mp.Queue,  num_sensors : int, figsize=(14,10)):
 
         nrows = int(num_sensors/2) + num_sensors % 2
         ncols = 2
@@ -151,7 +184,7 @@ class PlotRepositoryBackend:
 
             try:
                 j_str = queue.get(timeout=0.01)
-            except Empty:
+            except qmod.Empty:
                 continue
             
 
