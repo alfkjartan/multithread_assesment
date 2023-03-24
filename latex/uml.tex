@@ -37,6 +37,13 @@ keywordstyle=\color{blue}
 \renewcommand{\umlfillcolor}{black!6}
 \renewcommand{\umldrawcolor}{red!60!black}
 
+\newcommand{\selfcomposition}[4]
+{
+\draw[red!60!black,  -diamond] (#1) ++(#4, 0) -- ++(2cm,0) -- ++(0, -0.9cm) -- ++(-2cm,0)
+node[near end, above]{#2}
+node[near end, below]{#3};
+}
+
 \begin{document}
 
 \begin{tikzpicture}[
@@ -60,34 +67,28 @@ keywordstyle=\color{blue}
   \composition{Sensor}{connection}{1}{ClientConnection}
 
 
-  \begin{class}{ServerConnection}{0,-4}
+  \begin{class}{ServerConnection}{8,-4}
     \attribute{socket : Socket}
     \attribute{logger : Logger}
     
   \end{class}
 
-  \begin{class}[text width = 6cm]{Logger}{8,-4}
+  \begin{class}[text width = 6cm]{Repository}{16,-4}
     \attribute{repositories : list}
-    \attribute{lock : Lock}
     \operation{append( m : Message )}
     \operation{add\_repository( rep : Repository )}
     \operation{remove\_repository( rep : Repository )}
-    
-  \end{class}
-
-  \composition{ServerConnection}{logger}{1}{Logger}
-
-  \begin{class}[text width = 4cm]{Repository}{16,-4}
-    \operation{append( m : Message )}
     \operation{\_\_iter\_\_()}
     \operation{\_\_next\_\_()}
     \operation[0]{+ create\_screen\_dump()}
     \operation[0]{+ create\_csv\_repository()}
     \operation[0]{+ create\_plot()}
+    
   \end{class}
 
+  \composition{ServerConnection}{repository}{1}{Repository}
 
-  \composition{Logger}{}{1..*}{Repository}
+  \selfcomposition{Repository.north east}{}{1..*}{0cm}
 
   \begin{class}[text width=4cm]{CSVRepository}{11,-9}
     \inherit{Repository}

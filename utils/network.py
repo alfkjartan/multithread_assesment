@@ -6,7 +6,7 @@ from multiprocessing import shared_memory
 from multiprocessing import connection
 from threading import Thread, Event
 from service.model.message import Message
-from service.repository.logging import Logger
+from service.repository.repository import Repository
 
 #import time
 #from threading import Thread
@@ -108,12 +108,12 @@ class ServerConnection():
        
     """
 
-    def __init__(self, sckt : socket.socket, logger : Logger):
+    def __init__(self, sckt : socket.socket, repo : Repository):
         self.sckt = sckt
-        self.logger = logger
+        self.repository = repo
         
     def __call__(self, stop_event : Event):
-        """ Function run by thread. Receives data over the socket, parses and calls logger.
+        """ Function run by thread. Receives data over the socket, parses and calls repository.
         
             Code adapted from https://docs.python.org/3/howto/sockets.html
        """
@@ -121,7 +121,7 @@ class ServerConnection():
             if stop_event.is_set():
                 print(f"ServerConnection with socket {self.sckt} received stop signal")
                 break
-            self.logger.append(Message.from_json_str(self.__read()))
+            self.repository.append(Message.from_json_str(self.__read()))
             
     def __read(self) -> str:
         """ Will read data from the socket and checking for opening and closing curly
@@ -172,12 +172,12 @@ class Server(metaclass=ServerSingletonMeta):
        
     """
 
-    def __init__(self, host : str, port : int, logger : Logger):
+    def __init__(self, host : str, port : int, repository : Repository):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.logger = logger
+        self.repository = repository
         self.client_sockets = []
 
         
@@ -197,7 +197,7 @@ class Server(metaclass=ServerSingletonMeta):
 
             self.client_sockets.append(client_sock)
             
-            conn = ServerConnection(client_sock, self.logger)
+            conn = ServerConnection(client_sock, self.repository)
             print("Server accepting connection")
             Thread(target=conn, args=[stop_event]).start()
     def close(self):
@@ -245,11 +245,11 @@ class SMClientConnection:
 
 class SMServerConnection:
     """ Code run in a separate thread which will block at client object waiting for update to the 
-    shared memory (Message object). The message object is passed on to the logger.
+    shared memory (Message object). The message object is passed on to the repository.
     """
 
-    def __init__(self, logger : Logger, client : SMClientConnection):
-        self.logger = logger
+    def __init__(self, repository : Repository, client : SMClientConnection):
+        self.repository = repository
         self.message = shared_memory.SharedMemory(client.message.name)
         self.new_data_flag = shared_memory.SharedMemory(client.new_data_flag.name)
         self.new_data_flag.buf[0] = 0
@@ -276,7 +276,7 @@ class SMServerConnection:
 
                 
             m = SMServerConnection.chop_json(str(self.message.buf, 'utf8'))
-            self.logger.append(Message.from_json_str(m))
+            self.repository.append(Message.from_json_str(m))
             self.new_data_flag.buf[0] = 0
 
     def close(self):
@@ -337,11 +337,11 @@ class PipeClientConnection:
         
 class PipeServerConnection:
     """ Code run in a separate thread which will block at client object waiting for update to the 
-    shared memory (Message object). The message object is passed on to the logger.
+    shared memory (Message object). The message object is passed on to the repository.
     """
 
-    def __init__(self, logger : Logger, server_conn : connection.Connection ):
-        self.logger = logger
+    def __init__(self, repository : Repository, server_conn : connection.Connection ):
+        self.repository = repository
         self.pipe = server_conn
         
     def run(self, stop_event : Event):
@@ -359,37 +359,37 @@ class PipeServerConnection:
                 self.pipe.close()
                 break
             
-            self.logger.append(Message.from_json_str(j_str))
+            self.repository.append(Message.from_json_str(j_str))
 
     def close(self):
         print("Server pipe closing down.")
         self.pipe.close()
         
 class Connection:
-    """ Factory class for instantiating connection objects that handle the communication between sensors and logger.
+    """ Factory class for instantiating connection objects that handle the communication between sensors and repository.
 
     The objects returned implement a method `run()` which should be run in a separate thread.
 
     Methods (all static)
     -------------------
-    create_server( host : str, port : int, logger : Logger ) -> Server
+    create_server( host : str, port : int, repository : Repository ) -> Server
     create_client_connection( host : str, port : int) -> ClientConnection
-    create_memory_connection( logger : Logger) -> (SMServerConnection, SMClientConnection)
-    create_pipe_connection( logger : Logger) -> (PipeServerConnection, PipeClientConnection)
+    create_memory_connection( repository : Repository) -> (SMServerConnection, SMClientConnection)
+    create_pipe_connection( repository : Repository) -> (PipeServerConnection, PipeClientConnection)
     """
 
 
-    def create_socket_connection(logger, host='127.0.0.1', port=33331):
-        return ( Server(host, port, logger), ClientConnection(host, port) )
+    def create_socket_connection(repository, host='127.0.0.1', port=33331):
+        return ( Server(host, port, repository), ClientConnection(host, port) )
 
-    def create_memory_connection(logger : Logger) -> (SMServerConnection, SMClientConnection):
+    def create_memory_connection(repository : Repository) -> (SMServerConnection, SMClientConnection):
         client = SMClientConnection()
-        server = SMServerConnection(logger, client) # The shared memory is attribute of the client 
+        server = SMServerConnection(repository, client) # The shared memory is attribute of the client 
         return (server, client)
 
-    def create_pipe_connection(logger : Logger) -> (PipeServerConnection, PipeClientConnection):
+    def create_pipe_connection(repository : Repository) -> (PipeServerConnection, PipeClientConnection):
         client_conn, server_conn = multiprocessing.Pipe()
         client = PipeClientConnection(client_conn)
-        server = PipeServerConnection(logger, server_conn) # The shared memory is attribute of the client 
+        server = PipeServerConnection(repository, server_conn) # The shared memory is attribute of the client 
         return (server, client)
 

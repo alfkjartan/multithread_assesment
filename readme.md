@@ -46,7 +46,7 @@ According to [John Ousterhout](https://youtu.be/bmSAYlu0NcY): Classes and functi
 - The **storage used for logging**. Logging could go to file (csv, sqlite3), to network-connected SQL-database, saved in memory, or simply printed to screen.  And in any combinations of the previous.
 - The part of the sensor that actually **acquires data**. This is referred to here as the probe. In the simulation model developed here this is just a function that returns a number. In practice, it would be something more interesting.
 - The **data model**. This is related to the previous item. Some sensors will generate data of different kind, including array-like data. Whenever possible, objects that receives data should be agnostic to the structure of the message, to avoid dependencies. 
-- The **connection between the sensors and the logger**. There are different ways of implementing  inter-process communications. Here, tcp sockets, shared memory, pipes and queues will be used. Importantly, the design should make it easy to switch the type of communication.
+- The **connection between the sensors and the repository**. There are different ways of implementing  inter-process communications. Here, tcp sockets, shared memory, pipes and queues will be used. Importantly, the design should make it easy to switch the type of communication.
 - The **number of sensors**.
 ## Design
 ### UML
@@ -65,22 +65,21 @@ The `sensors.base_sensor.Sensor` objects run in separate processes, but with onl
 ### Client side
 The client-part of the connection pairs belong to the `Sensor` object, and run in its process. 
 #### Server side
-The server-part runs in a separate thread. In all three types of communication (socket, shared_memory, pipe), the server-part reads a json-string, reconstructs the `Message` object, and calls `append( m : Message)` on the `Logger` *singleton* object.
+The server-part runs in a separate thread. In all three types of communication (socket, shared_memory, pipe), the server-part reads a json-string, reconstructs the `Message` object, and calls `append( m : Message)` on the `Repository` object.
 ### Logging
-The `repository.logging.Logger` class provides a simple interface for logging `Message` objects, by calling `append(m : Message)` method. The [Singleton pattern](https://refactoring.guru/design-patterns/singleton/python/example) is used to ensure only one logger is in use.  The logger object maintains a list of `service.repository.Repository` objects. The logger forwards the call to `append` to each of the `Repository` objects. This is an example of the [Observer pattern](https://refactoring.guru/design-patterns/observer). Repository objects can be added to- and removed from the list at runtime. The `Logger` singleton receives calls from several threads, from all the server-side connection objects that are running. `Logger` is thread-safe, due to the use of a lock to ensure that calls to `append` are atomic. It is therefore not necessary that the calls to each `Repository` object is thread-safe (atomic).
-### Repositories
-The `Repositiory` objects are in essence like lists, and in fact a regular `list` object can be added to the `Logger`and  used to store incoming messages in memory. There are three custom `Repository` classes defined. 
+The `repository.Repository` class provides a simple interface for logging `Message` objects, by calling `append(m : Message)` method. The [composite pattern](https://refactoring.guru/design-patterns/composite/python/example) is used so that from the perspective of the calling object, a single and several (composite) repository objects have the same interface.  The repository object maintains a list of other `service.repository.Repository` objects, and forwards the call to `append()` to each of the children repositories. Repository objects can be added to- and removed from the list at runtime. The `Repository` object receives calls from several threads, from all the server-side connection objects that are running. The call to `append` on each concrete repository subclass is thread-safe.
+
+The `Repositiory` objects are in essence like lists, and in fact a regular `list` object can be used as a repository to store incoming messages in memory. There are three custom `Repository` classes defined. 
   * `CSVRepository` appends the data of each message as a row to a csv file. 
   * `PlotRepository` starts a window in a separate process (needed since tkinter / matplotlib can only run in the main thread), and forwards data to be plotted using a `multiprocessing.Queue` object for inter-process communication. 
   * `ScreenRepository` simply prints the data to the screen
 ## Design patterns used
   * [Factory Method.](https://refactoring.guru/design-patterns/factory-method) This is used to create server-client connection pairs for different type of communication. See [network.py](./utils/network.py).
-  * [Singleton.](https://refactoring.guru/design-patterns/singleton) This pattern is used in two places:
-	* To ensure only one `Logger` object is created. See [logging.py](./service/repository/logging.py).
-    * To ensure there is only one `Server` object listening for connections on the server socket. 
-  * [Observer.](https://refactoring.guru/design-patterns/observer) Used in the `Logger` class to broadcast incoming messages several `Repository` objects.
+  * [Singleton.](https://refactoring.guru/design-patterns/singleton) This pattern is used 
+	to ensure there is only one `Server` object listening for connections on the server socket. 
+  * [Composite.](https://refactoring.guru/design-patterns/composite) Used to make a single or a collection of repository object have the same interface, and to make it easy to add new repository sublasses. See [repository.py](./service/repository/repository.py).
   * [Strategy.](https://refactoring.guru/design-patterns/strategy) Used in the `Sensor` class, to separate the data acquisition part (the `probe` callable) which can the vary depending on the type of sensor being simulated. See [base_sensor.py](./sensors/base_sensor.py).
-  * [Iterator.](https://refactoring.guru/design-patterns/iterator) Implemented in the `CSVRepository` class, to make it possible to loop over the messages saved on disk. See [repository.py](./service/repository/repository.py)
+  * [Iterator.](https://refactoring.guru/design-patterns/iterator) Implemented in the `Repository` and `CSVRepository` classes. Note that when iterating over to the composite `Repository` object, iteration will be over all the child-repositories. See [repository.py](./service/repository/repository.py).
   
 ## Multithreading and multiprocessing implemented
   * Each sensor runs in a separate process. Three different types of inter-process communication is implemented:
