@@ -1,8 +1,9 @@
 import threading
 import sys
+import time
+import numpy as np
 from service.repository.repository import Repository
 from service.model.message import Message
-
 
 class SingletonMeta(type):
     """
@@ -54,14 +55,21 @@ class Logger(metaclass=SingletonMeta):
 
         self.repositories = []
         self.lock = threading.Lock()
+        self.times_per_append = []
         
     def append(self, d : Message):
-        with self.lock:
-            [r.append(d) for r in self.repositories]
+        #with self.lock:
+        tstart = time.perf_counter()
+        [r.append(d) for r in self.repositories]
 
+        self.times_per_append.append(time.perf_counter() - tstart)
+
+        if len(self.times_per_append) == 1000:
+            print(f"Average time per call to Logger.append : {np.mean(self.times_per_append)}")
+            
     def add_repository(self, r : Repository):
-        with self.lock:
-            self.repositories.append(r)
+        #with self.lock:
+        self.repositories.append(r)
 
     def remove_repository (self, r : Repository):
         with self.lock:
