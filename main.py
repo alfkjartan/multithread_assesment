@@ -20,8 +20,8 @@ if __name__ == '__main__':
     host = '127.0.0.1'
     port = 33330
     num_sensors = 5
-    csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d.csv")
-    # Not implemented sqlite_dbfile = datetime.now().strftime("sensorlog-sqlite-%Y-%m-%d.db")
+    csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d-.csv")
+    sqlite_dbfile = datetime.now().strftime("sensorlog-%Y-%m-%d-%H-%M-%S.db")
     log_to_screen = False
     log_to_plot = False
     system_sensor_data = False
@@ -56,12 +56,11 @@ if __name__ == '__main__':
 
 
             
-    # Setting up the repositories
-    logger = Repository()
-    logger.create_csv_repository(csv_logfile).add_repository([])
-    #TODO implement logging to sqlite database
-    if log_to_screen: logger.create_screen_dump()
-    if log_to_plot: logger.create_plot(num_sensors)
+    # Setting up the repositories. Both CSV and sqlite
+    logger = Repository().sql(sqlite_dbfile).csv(csv_logfile)
+    #logger.add_repository([])
+    if log_to_screen: logger.screen_dump()
+    if log_to_plot: logger.plot(num_sensors)
     
     if connection_type == 'socket':
         connection_factory = partial(Connection.create_socket_connection, host=host, port=port)

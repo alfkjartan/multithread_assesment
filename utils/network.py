@@ -177,6 +177,7 @@ class Server(metaclass=ServerSingletonMeta):
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.settimeout(0.2)
         self.repository = repository
         self.client_sockets = []
 
@@ -190,16 +191,18 @@ class Server(metaclass=ServerSingletonMeta):
             if stop_event.is_set():
                 print("Server received stop signal.")
                 self.server_socket.close()
-                for cs in self.client_sockets:
-                    cs.close()
-                    
-            client_sock, addr = self.server_socket.accept()
-
-            self.client_sockets.append(client_sock)
+                break
+                #for cs in self.client_sockets:
+                #    cs.close()
+            try: 
+                client_sock, addr = self.server_socket.accept()
+                print("Server accepting connection")
+                self.client_sockets.append(client_sock)
+                conn = ServerConnection(client_sock, self.repository)
+                Thread(target=conn, args=[stop_event]).start()
+            except socket.timeout:
+                pass
             
-            conn = ServerConnection(client_sock, self.repository)
-            print("Server accepting connection")
-            Thread(target=conn, args=[stop_event]).start()
     def close(self):
         print(f"Server host = {self.host} and port = {self.port} is closing down.")
         self.server_socket.close()

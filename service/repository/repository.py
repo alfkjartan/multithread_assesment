@@ -1,12 +1,14 @@
 import sys
 import abc
+import numpy as np
 from datetime import datetime
-import matplotlib.pyplot as plt
 import multiprocessing as mp
 import threading as mt
 import queue as qmod
 from itertools import chain
-import numpy as np
+import matplotlib.pyplot as plt
+import sqlite3
+from typing import Any
 from service.model.message import Message
 
 
@@ -39,15 +41,19 @@ class Repository():
         self.repositories.append(r)
         
     # Factory methods
-    def create_screen_dump(self, where=sys.stdout):
+    def screen_dump(self, where=sys.stdout):
         self.repositories.append(ScreenRepository(where))
         return self
 
-    def create_csv_repository(self, filename : str):
+    def csv(self, filename : str):
         self.repositories.append(CSVRepository(filename))
         return self
 
-    def create_plot(self,num_sensors : int):
+    def sql(self, filename : str):
+        self.repositories.append(SQLRepository(filename))
+        return self
+
+    def plot(self,num_sensors : int):
         self.repositories.append(PlotRepository(num_sensors))
         return self
 
@@ -118,6 +124,7 @@ class CSVRepository(Repository):
                 f.write("\n")
 
     def __iter__(self):
+        print("Iterating over data in {}".format(self.filename))
         self.file_to_read = open(self.filename, 'r+')
         # Read the first line to get the headings = attributes.
         self.headers = [s.strip() for s in self.file_to_read.readline().split(',')]
@@ -135,6 +142,83 @@ class CSVRepository(Repository):
         return message
     
         
+class SQLRepository(Repository):
+    """
+    Creates (if needed) and saves data to an SQLite database on file. 
+
+    """
+
+    def __init__(self,  filename : str, cache_size = 21):
+        self.filename = filename
+        self.lock = mt.Lock()
+        self.table = "sensor_messages"
+        self.initial_db = 'message_id INTEGER PRIMARY KEY'
+        self.cache = []
+        self.cache_size = cache_size
+        self.table_created = False
+        self.rowid = 0
+
+    def append(self, message : Message):
+        if not self.table_created:
+            with self.lock:
+                with sqlite3.connect(self.filename) as con:
+                    cur = con.cursor()
+
+                    cur.execute("CREATE TABLE IF NOT EXISTS {} ({})".format(self.table, self.initial_db))
+                    try:
+                        for k, v in message.__dict__.items():
+                            sql = "ALTER TABLE {} ADD {} {}".format(self.table, k,
+                                                                    SQLRepository.to_sql_string(v))
+
+                            cur.execute(sql)
+                    except sqlite3.OperationalError:
+                        # Already defined the columns, so ignore error
+                        pass
+                    cur.close()
+                self.table_created = True
+            
+        if len(self.cache) < self.cache_size:
+            self.cache.append([self.rowid] + list(message.__dict__.values()))
+            self.rowid += 1
+        else:
+            # Write cached messages to db
+            self._flush()
+
+    def _flush(self):
+        with self.lock:
+            with sqlite3.connect(self.filename) as con:
+                cur = con.cursor()
+                cur.executemany('INSERT INTO {} VALUES (?, ?, ?, ?, ?)'.format(self.table), self.cache)
+                self.cache.clear()
+                    
+    def to_sql_string(v : Any) -> str:
+        """Returns the sql type as a string corresponding to the datatype of the argument.
+        Supports only a 
+        """
+        if isinstance(v, str): return "TEXT"
+        if isinstance(v, int): return "INTEGER"
+        if isinstance(v, float): return "REAL"
+
+        raise NotImplemented("Only types str, int and float supported")
+
+    def __iter__(self):
+        print("Iterating over data in {}".format(self.table))
+        self.rowid = 1
+        return self
+
+    def __next__(self):
+        with self.lock:
+            with sqlite3.connect(self.filename) as con:
+                cur = con.cursor()
+                res = cur.execute('SELECT * FROM {} WHERE rowid = {}'.format(self.table, self.rowid))
+                row = res.fetchall()
+                if len(row) == 0:
+                    raise StopIteration
+                else:
+                    self.rowid += 1
+                    return row
+
+    
 class PlotRepository(Repository):
     """
     Creates a figure and plots data as they arrive.
