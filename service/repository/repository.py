@@ -7,6 +7,7 @@ import threading as mt
 import queue as qmod
 from itertools import chain
 import matplotlib.pyplot as plt
+import csv
 import sqlite3
 from typing import Any
 from service.model.message import Message
@@ -73,9 +74,12 @@ class CSVRepository(Repository):
     Tests
     ----
     >>> fname = '/tmp/csvtest.csv'
-    >>> rep = CSVRepository(fname)
+    >>> rep = CSVRepository(fname) 
     >>> msg = Message.message()
     >>> rep.append(msg)
+    >>> msg2 = Message.message()
+    >>> msg2.data = None # Will stop worker thread writing to file 
+    >>> rep.append(msg2) 
     >>> for m in rep: 
     ...   m.id == msg.id 
     ...   m.name == msg.name 
@@ -124,7 +128,6 @@ class CSVRepository(Repository):
                 f.write("\n")
 
     def __iter__(self):
-        print("Iterating over data in {}".format(self.filename))
         self.file_to_read = open(self.filename, 'r+')
         # Read the first line to get the headings = attributes.
         self.headers = [s.strip() for s in self.file_to_read.readline().split(',')]
@@ -132,7 +135,8 @@ class CSVRepository(Repository):
         
     def __next__(self):
         line = self.file_to_read.readline()
-        if line == '':
+        if line == '': 
+            self.file_to_read.close()
             raise StopIteration
         
         vals = [s.strip() for s in line.split(',')]
@@ -146,6 +150,25 @@ class SQLRepository(Repository):
     """
     Creates (if needed) and saves data to an SQLite database on file. 
 
+
+    Tests
+    ----
+    >>> import uuid
+    >>> fname = '/tmp/' + str(uuid.uuid4()) + '.db' # Unique filename 
+    >>> rep = SQLRepository(fname)
+    >>> msg = Message.message()
+    >>> rep.append(msg)
+    >>> for m in rep: 
+    ...   m.id == msg.id 
+    ...   m.name == msg.name 
+    ...   m.data == msg.data 
+    ...   print(m.time_stamp, msg.time_stamp)
+    ...   m.time_stamp == msg.time_stamp 
+    ... 
+    True
+    True
+    True
+    True
     """
 
     def __init__(self,  filename : str, cache_size = 21):
@@ -160,22 +183,8 @@ class SQLRepository(Repository):
 
     def append(self, message : Message):
         if not self.table_created:
-            with self.lock:
-                with sqlite3.connect(self.filename) as con:
-                    cur = con.cursor()
-
-                    cur.execute("CREATE TABLE IF NOT EXISTS {} ({})".format(self.table, self.initial_db))
-                    try:
-                        for k, v in message.__dict__.items():
-                            sql = "ALTER TABLE {} ADD {} {}".format(self.table, k,
-                                                                    SQLRepository.to_sql_string(v))
-
-                            cur.execute(sql)
-                    except sqlite3.OperationalError:
-                        # Already defined the columns, so ignore error
-                        pass
-                    cur.close()
-                self.table_created = True
+            self._create_table(message)
+            self.table_created = True
             
         if len(self.cache) < self.cache_size:
             self.cache.append([self.rowid] + list(message.__dict__.values()))
@@ -190,7 +199,24 @@ class SQLRepository(Repository):
                 cur = con.cursor()
                 cur.executemany('INSERT INTO {} VALUES (?, ?, ?, ?, ?)'.format(self.table), self.cache)
                 self.cache.clear()
-                    
+                cur.close()
+                
+    def _create_table(self, message):
+        with self.lock:
+            with sqlite3.connect(self.filename) as con:
+                cur = con.cursor()
+                cur.execute("CREATE TABLE IF NOT EXISTS {} ({})".format(self.table, self.initial_db))
+                try:
+                    for k, v in message.__dict__.items():
+                        sql = "ALTER TABLE {} ADD {} {}".format(self.table, k,
+                                                                SQLRepository.to_sql_string(v))
+
+                        cur.execute(sql)
+                except sqlite3.OperationalError:
+                    # Already defined the columns, so ignore error
+                    pass
+                cur.close()
+
     def to_sql_string(v : Any) -> str:
         """Returns the sql type as a string corresponding to the datatype of the argument.
         Supports only a 
@@ -202,22 +228,26 @@ class SQLRepository(Repository):
         raise NotImplemented("Only types str, int and float supported")
 
     def __iter__(self):
-        print("Iterating over data in {}".format(self.table))
-        self.rowid = 1
+        self._flush()
+        self.rowid = 0
         return self
 
     def __next__(self):
         with self.lock:
             with sqlite3.connect(self.filename) as con:
+                message = Message.message()
                 cur = con.cursor()
                 res = cur.execute('SELECT * FROM {} WHERE rowid = {}'.format(self.table, self.rowid))
                 row = res.fetchall()
                 if len(row) == 0:
+                    cur.close()
                     raise StopIteration
                 else:
                     self.rowid += 1
-                    return row
+                    message.from_list(row[0][1:]) # The first element is the unique rowid no used in the message
 
+                cur.close()
+                return message
     
 class PlotRepository(Repository):
     """
