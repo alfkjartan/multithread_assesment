@@ -1,13 +1,13 @@
 import sys
-import abc
 import numpy as np
+from abc import ABCMeta, abstractmethod
+import csv
 from datetime import datetime
 import multiprocessing as mp
 import threading as mt
 import queue as qmod
 from itertools import chain
 import matplotlib.pyplot as plt
-import csv
 import sqlite3
 from typing import Any
 from service.model.message import Message
@@ -16,70 +16,82 @@ from service.model.message import Message
 class Repository():
     """ 
     Storage or visualization of incoming messages.
-
-    Changed to use Composite pattern.
+    Uses the Decorator pattern. See https://refactoring.guru/design-patterns/decorator
     
-    Repository objects are list-like, so they implement `append` and are iterable. 
+    Repository objects are list-like, so they implement `append` and are iterable. The 
+    composition is obtained by maintaining references to other Repository objects in 
+    a list. For the present use case, it is probably a very shallow tree of objects that
+    will be in use.
     
     """
 
     def __init__(self):
-        self.repositories = []
+        self.message_list = []
         
     def append(self, message: Message):
-        for r in self.repositories:
-            r.append(message)
+        self.message_list.append(message)
 
     def __iter__(self):
-        # The objects themselves are iterable
-        return chain(*self.repositories)
+        return iter(self.message_list)
 
     def __next__(self):
-        """Must be overridden by subclasses that actually iterates"""
+        """Must be overridden by subclasses that handles the iteration themselves"""
         raise StopIteration()
 
-    def add_repository(self, r):
-        self.repositories.append(r)
         
-    # Factory methods
+    # Factory methods generating decorations.  These decorates the object with new behavior
     def screen_dump(self, where=sys.stdout):
-        self.repositories.append(ScreenRepository(where))
-        return self
+        return ScreenRepository(where, self)
 
     def csv(self, filename : str):
-        self.repositories.append(CSVRepository(filename))
-        return self
+        return CSVRepository(filename, self)
 
     def sql(self, filename : str):
-        self.repositories.append(SQLRepository(filename))
-        return self
+        return SQLRepository(filename, self)
 
     def plot(self,num_sensors : int):
-        self.repositories.append(PlotRepository(num_sensors))
-        return self
+        return PlotRepository(num_sensors, self)
 
-class ScreenRepository(Repository):
+class RepositoryDecorator(Repository, metaclass=ABCMeta):
+    """For common functionality of the different concrete decorator classes, including
+    synchronization with a lock, and calling the decorated object's append() method.
 
-    def __init__(self, where=sys.stdout):
+    Subclasses must implement the _handle(message : Message) method.
+    """
+
+    def __init__(self, repository : Repository):
+        self.repo = repository
+        self.lock = mt.Lock()
+
+    def append(self, message : Message):
+        self.repo.append(message) # First let the decorated object do its work
+        with self.lock:           # Then the decoration
+            self._handle(message)
+
+    @abstractmethod
+    def _handle(self, message : Message):
+        pass
+    
+class ScreenRepository(RepositoryDecorator):
+
+    def __init__(self, repository : Repository, where=sys.stdout):
+        super().__init__(repository)
         self.file = where
 
 
-    def append(self, message : Message):
+    def _handle(self, message : Message):
         print("\t".join(map(str, message.__dict__.values())), file=self.file)
 
 
-class CSVRepository(Repository):
+class CSVRepository(RepositoryDecorator):
     """ Repository that saves messages to csv file.
 
     Tests
     ----
     >>> fname = '/tmp/csvtest.csv'
-    >>> rep = CSVRepository(fname) 
+    >>> rep = Repository().csv(fname) 
     >>> msg = Message.message()
     >>> rep.append(msg)
-    >>> msg2 = Message.message()
-    >>> msg2.data = None # Will stop worker thread writing to file 
-    >>> rep.append(msg2) 
     >>> for m in rep: 
     ...   m.id == msg.id 
     ...   m.name == msg.name 
@@ -92,61 +104,30 @@ class CSVRepository(Repository):
     True
     """
     
-    def __init__(self, filename : str):
+    def __init__(self, filename : str, repository : Repository):
+        super().__init__(repository)
         self.filename = filename
-        self.q = qmod.Queue()
-        self.stop_event = mt.Event()
-        self.worker_thread = mt.Thread(target=CSVRepository.write,
-                                       args=(filename, self.q, self.stop_event))
-        self.worker_thread.start()
+        self.header_written = False
         
-    def append(self, message : Message):
+    def _handle(self, message : Message):
         if message.data is None:
-            # This is a flag raied by the sensor process that it is closing down.
-            self.stop_event.set()
-            return
-        self.q.put(message)
-
-    def write(filename : str, q : qmod.Queue, stop_event : mt.Event):
-        header_written = False
-        while True:
-            if stop_event.is_set():
-                break
-
-            try:
-                message = q.get(timeout=0.01)
-            except qmod.Empty:
-                continue
-
-            if not header_written:
-                with open(filename, 'w') as f:
-                    f.write(", ".join(map(str, message.__dict__.keys())))
-                    f.write("\n")
-                    header_written = True
-            with open(filename, 'a') as f:
-                f.write(", ".join(map(str, message.__dict__.values())))
-                f.write("\n")
+            return # Not saving None data, which is used as flag to stop logging.
+        with open(self.filename, 'a', newline='') as csvfile:
+            cw = csv.writer(csvfile)
+            if not self.header_written:
+                cw.writerow(list(message.__dict__.keys()))
+                self.header_written = True
+            cw.writerow(list(message.__dict__.values()))
 
     def __iter__(self):
-        self.file_to_read = open(self.filename, 'r+')
-        # Read the first line to get the headings = attributes.
-        self.headers = [s.strip() for s in self.file_to_read.readline().split(',')]
-        return self
+        """Returns a list containing the rows of the whole file."""
+        with open(self.filename, newline='') as csvfile:
+            cr = csv.reader(csvfile)
+            next(cr) # Skip the first line with headings
+            rows = [Message.message_from_list(row) for row in cr]
+            return iter(rows)
         
-    def __next__(self):
-        line = self.file_to_read.readline()
-        if line == '': 
-            self.file_to_read.close()
-            raise StopIteration
-        
-        vals = [s.strip() for s in line.split(',')]
-        message = Message.message()
-        message.from_list(vals)
-
-        return message
-    
-        
-class SQLRepository(Repository):
+class SQLRepository(RepositoryDecorator):
     """
     Creates (if needed) and saves data to an SQLite database on file. 
 
@@ -155,14 +136,13 @@ class SQLRepository(Repository):
     ----
     >>> import uuid
     >>> fname = '/tmp/' + str(uuid.uuid4()) + '.db' # Unique filename 
-    >>> rep = SQLRepository(fname)
+    >>> rep = Repository().sql(fname)
     >>> msg = Message.message()
     >>> rep.append(msg)
     >>> for m in rep: 
     ...   m.id == msg.id 
     ...   m.name == msg.name 
     ...   m.data == msg.data 
-    ...   print(m.time_stamp, msg.time_stamp)
     ...   m.time_stamp == msg.time_stamp 
     ... 
     True
@@ -171,51 +151,43 @@ class SQLRepository(Repository):
     True
     """
 
-    def __init__(self,  filename : str, cache_size = 21):
+    def __init__(self,  filename : str, repository : Repository):
+        super().__init__(repository)
         self.filename = filename
-        self.lock = mt.Lock()
         self.table = "sensor_messages"
         self.initial_db = 'message_id INTEGER PRIMARY KEY'
-        self.cache = []
-        self.cache_size = cache_size
         self.table_created = False
         self.rowid = 0
 
-    def append(self, message : Message):
+    def _handle(self, message : Message):
+        if message.data is None:
+            return # Not saving None data, which is used as flag to stop logging.
         if not self.table_created:
             self._create_table(message)
             self.table_created = True
             
-        if len(self.cache) < self.cache_size:
-            self.cache.append([self.rowid] + list(message.__dict__.values()))
+        with sqlite3.connect(self.filename) as con:
+            cur = con.cursor()
+            cur.execute('INSERT INTO {} VALUES (?, ?, ?, ?, ?)'.format(self.table),
+                        [self.rowid] + list(message.__dict__.values()))
+            cur.close()
             self.rowid += 1
-        else:
-            # Write cached messages to db
-            self._flush()
 
-    def _flush(self):
-        with self.lock:
-            with sqlite3.connect(self.filename) as con:
-                cur = con.cursor()
-                cur.executemany('INSERT INTO {} VALUES (?, ?, ?, ?, ?)'.format(self.table), self.cache)
-                self.cache.clear()
-                cur.close()
                 
     def _create_table(self, message):
-        with self.lock:
-            with sqlite3.connect(self.filename) as con:
-                cur = con.cursor()
-                cur.execute("CREATE TABLE IF NOT EXISTS {} ({})".format(self.table, self.initial_db))
-                try:
-                    for k, v in message.__dict__.items():
-                        sql = "ALTER TABLE {} ADD {} {}".format(self.table, k,
-                                                                SQLRepository.to_sql_string(v))
-
-                        cur.execute(sql)
-                except sqlite3.OperationalError:
-                    # Already defined the columns, so ignore error
-                    pass
-                cur.close()
+        with sqlite3.connect(self.filename) as con:
+            cur = con.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS {} ({})".format(self.table, self.initial_db))
+            try:
+                for k, v in message.__dict__.items():
+                    sql = "ALTER TABLE {} ADD {} {}".format(self.table, k,
+                                                            SQLRepository.to_sql_string(v))
+                    
+                    cur.execute(sql)
+            except sqlite3.OperationalError:
+                # Already defined the columns, so ignore error
+                pass
+            cur.close()
 
     def to_sql_string(v : Any) -> str:
         """Returns the sql type as a string corresponding to the datatype of the argument.
@@ -228,28 +200,26 @@ class SQLRepository(Repository):
         raise NotImplemented("Only types str, int and float supported")
 
     def __iter__(self):
-        self._flush()
         self.rowid = 0
         return self
 
     def __next__(self):
-        with self.lock:
-            with sqlite3.connect(self.filename) as con:
-                message = Message.message()
-                cur = con.cursor()
-                res = cur.execute('SELECT * FROM {} WHERE rowid = {}'.format(self.table, self.rowid))
-                row = res.fetchall()
-                if len(row) == 0:
-                    cur.close()
-                    raise StopIteration
-                else:
-                    self.rowid += 1
-                    message.from_list(row[0][1:]) # The first element is the unique rowid no used in the message
+        with sqlite3.connect(self.filename) as con:
+            message = Message.message()
+            cur = con.cursor()
+            res = cur.execute('SELECT * FROM {} WHERE rowid = {}'.format(self.table, self.rowid))
+            row = res.fetchall()
+            if len(row) == 0:
+                cur.close()
+                raise StopIteration
+            else:
+                self.rowid += 1
+                message.from_list(row[0][1:]) # The first element is the unique rowid no used in the message
 
                 cur.close()
                 return message
     
-class PlotRepository(Repository):
+class PlotRepository(RepositoryDecorator):
     """
     Creates a figure and plots data as they arrive.
 
@@ -257,14 +227,15 @@ class PlotRepository(Repository):
     loop, a separate process is spawn for the plot.
     """
 
-    def __init__(self, num_sensors : int, figsize=(14,10)):
+    def __init__(self, num_sensors : int, repository : Repository, figsize=(14,10)):
+        super().__init__(repository)
         self.stop_event = mp.Event()
         self.message_queue = mp.Queue()
         self.plot_proc = mp.Process(target=PlotRepositoryBackend.run,
                                  args=[self.stop_event, self.message_queue, num_sensors, figsize])
         self.plot_proc.start()
         
-    def append(self, message : Message):
+    def _handle(self, message : Message):
         if message.data is None:
             # This is a flag raied by the sensor process that it is closing down.
             self.stop_event.set()

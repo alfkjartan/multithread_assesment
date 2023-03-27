@@ -20,7 +20,7 @@ if __name__ == '__main__':
     host = '127.0.0.1'
     port = 33330
     num_sensors = 5
-    csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d-.csv")
+    csv_logfile = datetime.now().strftime("sensorlog-%Y-%m-%d-%H-%M-%S.csv")
     sqlite_dbfile = datetime.now().strftime("sensorlog-%Y-%m-%d-%H-%M-%S.db")
     log_to_screen = False
     log_to_plot = False
@@ -51,16 +51,15 @@ if __name__ == '__main__':
             # Use functions from psutil module to generate sensor data 
             system_sensor_data = True
         elif opt in ("--port"):
-            # Use functions from psutil module to generate sensor data 
             port = int(arg)
 
 
             
-    # Setting up the repositories. Both CSV and sqlite
+    # Setting up the repository with decorators for saving to csv and to sqlite db
     logger = Repository().sql(sqlite_dbfile).csv(csv_logfile)
     #logger.add_repository([])
-    if log_to_screen: logger.screen_dump()
-    if log_to_plot: logger.plot(num_sensors)
+    if log_to_screen: logger = logger.screen_dump()
+    if log_to_plot: logger = logger.plot(num_sensors)
     
     if connection_type == 'socket':
         connection_factory = partial(Connection.create_socket_connection, host=host, port=port)
@@ -145,7 +144,11 @@ if __name__ == '__main__':
 
     print("\n\n-----------------------------------------------------------\n")
     print("Logged data\n")
-    for m in logger:
+    if log_to_plot:
+        repo = logger.repo # Use the decorated repository for iterating
+    else: repo = logger
+
+    for m in repo:
         print(m)
     print("\n\n-----------------------------------------------------------\n")
 
