@@ -58,7 +58,7 @@ node[near end, below]{#3};
     \operation{\_\_call\_\_()}
   \end{class}
 
-  \begin{class}{ClientConnection}{8,-1}
+  \begin{class}{ClientConnection}{8,-1.6}
     \attribute{socket : Socket}
     \operation{send( message : Message )}
   \end{class}
@@ -69,46 +69,51 @@ node[near end, below]{#3};
 
   \begin{class}{ServerConnection}{8,-4}
     \attribute{socket : Socket}
-    \attribute{logger : Logger}
+    \attribute{repository : Repository}
     
   \end{class}
 
-  \begin{class}[text width = 6cm]{Repository}{16,-4}
-    \attribute{repositories : list}
+  \begin{class}[text width = 5cm]{Repository}{16,-2.6}
+    \attribute{message\_list : list}
     \operation{append( m : Message )}
-    \operation{add\_repository( rep : Repository )}
-    \operation{remove\_repository( rep : Repository )}
     \operation{\_\_iter\_\_()}
     \operation{\_\_next\_\_()}
-    \operation[0]{+ create\_screen\_dump()}
-    \operation[0]{+ create\_csv\_repository()}
-    \operation[0]{+ create\_plot()}
+    \operation[0]{csv()}
+    \operation[0]{sql()}
+    \operation[0]{plot()}
+    \operation[0]{screen\_dump()}
     
   \end{class}
 
   \composition{ServerConnection}{repository}{1}{Repository}
 
-  \selfcomposition{Repository.north east}{}{1..*}{0cm}
 
-  \begin{class}[text width=4cm]{CSVRepository}{11,-9}
+  \begin{class}[text width = 4cm]{RepositoryDecorator}{16,-8}
     \inherit{Repository}
-    \attribute{filename : str}
+    \attribute{repository}
     \operation{append( m : Message )}
-    \operation{\_\_iter\_\_()}
-    \operation{\_\_next\_\_()}
+    \operation{\_handle( m : Message)}
+  \end{class}
+
+  \selfcomposition{RepositoryDecorator.north east}{}{}{0cm}
+
+  \begin{class}[text width=4cm]{CSVRepository}{11,-11}
+    \inherit{RepositoryDecorator}
+    \attribute{filename : str}
+    \operation{\_handle( m : Message )}
   \end{class}
 
   
-  \begin{class}[text width=4cm]{ScreenRepository}{21,-9}
-    \inherit{Repository}
+  \begin{class}[text width=4cm]{PlotRepository}{21,-11}
+    \inherit{RepositoryDecorator}
     \attribute{filename : str}
-    \operation{append( m : Message )}
+    \operation{\_handle( m : Message )}
   \end{class}
 
-    \begin{class}[text width=4cm]{PlotRepository}{16,-9}
-      \inherit{Repository}
+    \begin{class}[text width=4cm]{SQLRepository}{16,-11}
+      \inherit{RepositoryDecorator}
     \attribute{filename : str}
-    \operation{append( m : Message )}
+    \operation{\_handle( m : Message )}
   \end{class}
 
 

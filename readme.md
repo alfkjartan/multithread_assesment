@@ -67,17 +67,17 @@ The client-part of the connection pairs belong to the `Sensor` object, and run i
 #### Server side
 The server-part runs in a separate thread. In all three types of communication (socket, shared_memory, pipe), the server-part reads a json-string, reconstructs the `Message` object, and calls `append( m : Message)` on the `Repository` object.
 ### Logging
-The `repository.Repository` class provides a simple interface for logging `Message` objects, by calling `append(m : Message)` method. The [composite pattern](https://refactoring.guru/design-patterns/composite/python/example) is used so that from the perspective of the calling object, a single and several (composite) repository objects have the same interface.  The repository object maintains a list of other `service.repository.Repository` objects, and forwards the call to `append()` to each of the children repositories. Repository objects can be added to- and removed from the list at runtime. The `Repository` object receives calls from several threads, from all the server-side connection objects that are running. The call to `append` on each concrete repository subclass is thread-safe.
-
-The `Repositiory` objects are in essence like lists, and in fact a regular `list` object can be used as a repository to store incoming messages in memory. There are three custom `Repository` classes defined. 
-  * `CSVRepository` appends the data of each message as a row to a csv file. 
+The `repository.Repository` class provides a simple interface for logging `Message` objects, by calling `append(m : Message)` method. The [decorator pattern](https://refactoring.guru/design-patterns/decorator) is used so that different combinations of where to present and store the logged data can be generated at run-time. This is completely transparent from the perspective of the code calling the repository's `append()` method. The `Repository` object receives calls from several threads, from all the server-side connection objects that are running in separate threads. The call to `append` is made thread-safe by synchronized access using a `threading.Lock` object.
+The `Repository` objects are in essence like lists, and hence iteration over the stored messages is also implemented. There are four concrete `RepositoryDecorator` classes defined. 
+  * `CSVRepository` appends the message as a row to a csv file. 
+  * `SQLRepository` appends the message as a row to an SQL table using sqlite.
   * `PlotRepository` starts a window in a separate process (needed since tkinter / matplotlib can only run in the main thread), and forwards data to be plotted using a `multiprocessing.Queue` object for inter-process communication. 
   * `ScreenRepository` simply prints the data to the screen
 ## Design patterns used
   * [Factory Method.](https://refactoring.guru/design-patterns/factory-method) This is used to create server-client connection pairs for different type of communication. See [network.py](./utils/network.py).
   * [Singleton.](https://refactoring.guru/design-patterns/singleton) This pattern is used 
 	to ensure there is only one `Server` object listening for connections on the server socket. 
-  * [Composite.](https://refactoring.guru/design-patterns/composite) Used to make a single or a collection of repository object have the same interface, and to make it easy to add new repository sublasses. See [repository.py](./service/repository/repository.py).
+  * [Decorator.](https://refactoring.guru/design-patterns/decorator) Used to add functionality to the repository object, such as plotting the data in real-time, logging to file or to an SQL database. The pattern makes it easy to add new ways of storing the data. See [repository.py](./service/repository/repository.py).
   * [Strategy.](https://refactoring.guru/design-patterns/strategy) Used in the `Sensor` class, to separate the data acquisition part (the `probe` callable) which can the vary depending on the type of sensor being simulated. See [base_sensor.py](./sensors/base_sensor.py).
   * [Iterator.](https://refactoring.guru/design-patterns/iterator) Implemented in the `Repository` and `CSVRepository` classes. Note that when iterating over to the composite `Repository` object, iteration will be over all the child-repositories. See [repository.py](./service/repository/repository.py).
   

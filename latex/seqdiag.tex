@@ -25,9 +25,9 @@
   \newinst[\hnd]{cs}{client socket}
   \newinst[0]{ss}{server socket}
   \newinst[\hnd]{sconn}{server conn}
-  \newinst[\hnd]{l}{Repository}
-  \newinst[\hnd]{rone}{repo 1}
-  \newinst[\hnd]{rtwo}{repo 2}
+  \newinst[\hnd]{l}{RepoDec 2}
+  \newinst[\hnd]{rone}{RepoDec 1}
+  \newinst[\hnd]{rtwo}{Repository}
   \newthread[red!60!black]{lt}{log thread}
 
   \begin{sdblock}[gray!6]{Run Loop}{The main loop}
@@ -42,13 +42,20 @@
       \postlevel
     \end{call}
     \begin{messcall}{sconn}{append()}{l}{}
-    \begin{messcall}{l}{append()}{rone}{}
+      \begin{messcall}{l}{append()}{rone}{}
+        \begin{messcall}{rone}{append()}{rtwo}{}
+        \end{messcall}
+        \begin{call}{rone}{\_handle()}{rone}{}
+        \end{call}
+        \begin{call}{l}{\_handle()}{l}{}
+        \end{call}
+      \end{messcall}
     \end{messcall}
-    \begin{messcall}{l}{append()}{rtwo}{}
-    \end{messcall}
-    \end{messcall}
-    
   \end{messcall}
+  %
+  % \end{document}
+  % \begin{call}{rtwo}{\_handle()}{rtwo}{}
+    %\end{call}
 
   \setthreadbias{east}
     \prelevel\prelevel\prelevel\prelevel
